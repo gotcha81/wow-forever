@@ -22,7 +22,7 @@ ns.Nearby = N
 
 local LINGER = 20      -- seconds an NPC seen by target / mouseover / combat log stays listed
 local PLATE_LINGER = 5 -- seconds after its nameplate went away
-local MAX_ROWS = 8
+local MAX_ROWS = 5
 local WIDTH = 300
 local MAX_DROP_SOURCES = 6
 
