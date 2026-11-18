@@ -12,6 +12,7 @@ local D = {
     quests = {},  -- [questId] = { dungeon = name, faction = "Horde"|"Alliance"|"Both", level =, requires = }
     chains = {},  -- [questId] = { prerequisite ids in order }
     xp = {},      -- [questId] = stored Forever XP (fallback when the game client has no answer)
+    levels = {},  -- [dungeon name] = { min, max } (DungeonJournal's "52-60", the game's LFG range)
 }
 
 local function ReadXP(fdj)
@@ -27,6 +28,10 @@ local function ReadDungeons(fdj)
     if type(fdj.DB) ~= "table" then return 0 end
     local count = 0
     for dungeonName, dungeon in pairs(fdj.DB) do
+        if type(dungeonName) == "string" and type(dungeon) == "table" and type(dungeon.level) == "string" then
+            local low, high = dungeon.level:match("^%s*(%d+)%s*%-%s*(%d+)")
+            if low then D.levels[dungeonName] = { tonumber(low), tonumber(high) } end
+        end
         if type(dungeonName) == "string" and type(dungeon) == "table" and type(dungeon.quests) == "table" then
             for _, q in ipairs(dungeon.quests) do
                 if type(q) == "table" and type(q.id) == "number" then
@@ -78,6 +83,7 @@ function D:Init()
         wipe(self.quests)
         wipe(self.chains)
         wipe(self.xp)
+        wipe(self.levels)
         ns.Print("DungeonJournal is installed, but its data was not recognised. Using QuestieDB data only.")
     end
 end

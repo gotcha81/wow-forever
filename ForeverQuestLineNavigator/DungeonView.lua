@@ -29,19 +29,36 @@ function D:Dungeons()
                 list[#list + 1] = d
             end
             d.quests[#d.quests + 1] = id
-            local level = P:QuestLevel(id)
-            if level and level > 0 then
-                d.min = math.min(d.min or level, level)
-                d.max = math.max(d.max or level, level)
-            end
         end
     end
+    for _, d in ipairs(list) do d.min, d.max = self:LevelRange(d) end
     table.sort(list, function(a, b)
         if (a.min or 999) ~= (b.min or 999) then return (a.min or 999) < (b.min or 999) end
         return a.name < b.name
     end)
     self.list, self.byName = list, byName
     return list
+end
+
+-- Level range: DungeonJournal's (the game's Looking For Group range) when it is
+-- installed. Otherwise from the quest levels, leaving out stray quests far below
+-- the rest (holiday or breadcrumb quests listed under the dungeon).
+function D:LevelRange(d)
+    local known = ns.DungeonJournalSource.levels[d.name]
+    if known then return known[1], known[2] end
+    local levels = {}
+    for _, id in ipairs(d.quests) do
+        local level = ns.Planner:QuestLevel(id)
+        if level and level > 0 then levels[#levels + 1] = level end
+    end
+    if #levels == 0 then return nil end
+    table.sort(levels)
+    local median = levels[math.floor((#levels + 1) / 2)]
+    local min
+    for _, level in ipairs(levels) do
+        if level >= median - 8 then min = level; break end
+    end
+    return min, levels[#levels]
 end
 
 function D:Find(name)
