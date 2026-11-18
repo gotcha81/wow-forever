@@ -8,7 +8,6 @@ local TOGGLES = {
     dungeon = { key = "dungeonFocus", label = "Dungeon focus" },
     class   = { key = "classQuests",  label = "Class quests" },
     travel  = { key = "travelTime",   label = "Travel time routing" },
-    waypoint = { key = "gameWaypoint", label = "Game waypoint (experimental)" },
 }
 
 -- A small window with selectable text, so output can be copied (Ctrl+C).
@@ -83,10 +82,10 @@ local function Debug()
         print("  Target: none")
     end
 
-    -- Game waypoint (/fqln waypoint): what the game says about it
+    -- Game waypoint (parked feature, see README): does the game support it yet?
     local has = function(t, k) return t and type(t[k]) == "function" and "yes" or "no" end
-    print(("  Waypoint option: %s  APIs: SetUserWaypoint %s, UiMapPoint %s, SuperTrack %s"):format(
-        tostring(ns.db.gameWaypoint), has(C_Map, "SetUserWaypoint"),
+    print(("  Game waypoint APIs: SetUserWaypoint %s, UiMapPoint %s, SuperTrack %s"):format(
+        has(C_Map, "SetUserWaypoint"),
         (UiMapPoint and UiMapPoint.CreateFromCoordinates) and "yes" or "no",
         has(C_SuperTrack, "SetSuperTrackedUserWaypoint")))
     if target and target.point and C_Map and C_Map.CanSetUserWaypointOnMap then
@@ -101,7 +100,6 @@ local function Debug()
         local ok, tracking = pcall(C_SuperTrack.IsSuperTrackingUserWaypoint)
         print("  Game is tracking it: " .. tostring(ok and tracking))
     end
-    print("  Set by this addon: " .. tostring(ns.Arrow.waypointSet ~= nil))
     ns.ShowCopy("QuestLine Navigator: debug", table.concat(lines, "\n"))
 end
 
@@ -110,7 +108,7 @@ local function OnOff(value) return value and "|cff40ff40on|r" or "|cffff5555off|
 local function Help()
     ns.Print("commands:")
     print("  /fqln  - show or hide the quest list")
-    print("  /fqln arrow|pins|dungeon|class|travel|waypoint on|off")
+    print("  /fqln arrow|pins|dungeon|class|travel on|off")
     print("  /fqln minimap on|off  - the QN minimap button")
     print("  /fqln arrowtext <8-24>  - text size under the arrow (now " .. ns.db.arrowFrame.textSize .. ")")
     print("  /fqln lock|unlock arrow|window  - pin or free a position (or use the padlocks)")

@@ -1,10 +1,8 @@
 -- Navigation to route stop #1 (or the stop you clicked):
 --  * the blue arrow: turns with you, turns green when you face the right way,
 --    shows what to do, where, and how far. Hover it for a padlock (pin its
---    position), text size buttons and a hide button;
---  * optional: the game's own waypoint (Retail-style map pin + in-world marker).
---    Off by default, because the waypoint API is reported unreliable on Forever.
--- Both are hidden / cleared inside instances.
+--    position), text size buttons and a hide button.
+-- Hidden inside instances.
 
 local ADDON_NAME, ns = ...
 
@@ -138,31 +136,16 @@ function A:UpdateVisibility()
     local inInstance = IsInInstance()
     local hasTarget = self.target ~= nil and self.target.point ~= nil
     self.frame:SetShown(ns.db.arrow and hasTarget and not inInstance)
-    self:UpdateGameWaypoint(hasTarget and not inInstance and ns.db.gameWaypoint)
 end
 
--- Optional: the game's own waypoint and super-tracking (Retail-style marker).
-function A:UpdateGameWaypoint(enabled)
-    if not (C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates) then return end
-    local point = enabled and self.target and self.target.point
-    if not point then
-        if self.waypointSet then
-            pcall(C_Map.ClearUserWaypoint)
-            self.waypointSet = nil
-        end
-        return
-    end
-    local key = point.uiMapId .. ":" .. point.x .. ":" .. point.y
-    if self.waypointSet == key then return end
-    local okMap = not C_Map.CanSetUserWaypointOnMap or C_Map.CanSetUserWaypointOnMap(point.uiMapId)
-    if not okMap then return end
-    local ok = pcall(C_Map.SetUserWaypoint, UiMapPoint.CreateFromCoordinates(point.uiMapId, point.x, point.y))
-    if ok then
-        self.waypointSet = key
-        if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
-            pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
-        end
-    end
+-- The game-waypoint option (Retail-style marker) was removed in 0.2.x: Forever
+-- accepts the waypoint but never draws it. The code is in git history (commit
+-- 08ba4f1, UI/Arrow.lua, A:UpdateGameWaypoint); /fqln debug still checks the API.
+-- Players who had it on still have our old waypoint set: clear it once.
+function A:ClearOldGameWaypoint()
+    if ns.db.gameWaypoint == nil then return end
+    if ns.db.gameWaypoint and C_Map and C_Map.ClearUserWaypoint then pcall(C_Map.ClearUserWaypoint) end
+    ns.db.gameWaypoint = nil
 end
 
 function A:Tick()

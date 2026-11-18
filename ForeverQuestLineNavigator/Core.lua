@@ -18,7 +18,6 @@ ns.defaults = {
     classQuests  = true,   -- include class quests for your class
     travelTime   = false,  -- route by estimated travel time instead of plain distance
     arrow        = true,   -- show the blue arrow (always hidden inside instances)
-    gameWaypoint = false,  -- also set the game's own waypoint (Retail-style marker); experimental on Forever
     minimap      = { shown = true, angle = 200 },
     pins         = true,   -- numbered pins on the world map / OpenMap and minimap
     riding       = "auto", -- "auto", "none", "60" or "100"
@@ -92,6 +91,7 @@ events:SetScript("OnEvent", function(self, event, arg1, arg2)
         ns.DungeonJournalSource:Init()
         ns.List:Create()
         ns.Arrow:Create()
+        ns.Arrow:ClearOldGameWaypoint()
         ns.MinimapButton:Create()
 
         -- Questie's public API tells us when its data is ready.
