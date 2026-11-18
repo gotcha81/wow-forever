@@ -73,8 +73,10 @@ function Pins:Update()
     for i, stop in ipairs(ns.Planner.route) do
         local p = stop.point
         if p and type(p.uiMapId) == "number" and type(p.x) == "number" and type(p.y) == "number" then
-            local worldPin = Prepare(self.world, i, 20, stop)
-            pcall(HBDPins.AddWorldMapIconMap, HBDPins, ADDON_NAME, worldPin, p.uiMapId, p.x, p.y, showFlag)
+            if not stop.trivial then -- grey quests never go on the world map
+                local worldPin = Prepare(self.world, i, 20, stop)
+                pcall(HBDPins.AddWorldMapIconMap, HBDPins, ADDON_NAME, worldPin, p.uiMapId, p.x, p.y, showFlag)
+            end
             if minimapPins then
                 local miniPin = Prepare(self.minimap, i, 14, stop)
                 pcall(HBDPins.AddMinimapIconMap, HBDPins, ADDON_NAME, miniPin, p.uiMapId, p.x, p.y, true,
