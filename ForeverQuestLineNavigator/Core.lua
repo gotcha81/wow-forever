@@ -13,32 +13,52 @@ function ns.Print(msg)
 end
 
 ---------------------------------------------------------------------------------------
--- Error catcher: our own code runs through ns.Safe, so an error is logged once
--- (with a count) instead of popping up every frame. /fqln errors shows them.
+-- Error log: our own code runs through ns.Safe, so an error is logged instead of
+-- popping up every frame.
+--  * Rate limited: the same error only counts up ("Error B occurred 89 times"),
+--    the chat notice shows at most once per 10 seconds, at most 50 different
+--    errors are kept.
+--  * Saved in the SavedVariables (ForeverQuestLineNavigatorDB.errorLog), so it
+--    survives /reload and logout and can be read from the saved file directly.
+--  * /fqln errors opens it in a copy window, /fqln errors clear empties it.
 ---------------------------------------------------------------------------------------
 
-ns.errors = {}          -- { { message = , stack = , count = , where = }, ... }
-local errorIndex = {}   -- message -> entry
+local MAX_ERRORS = 50
+local NOTICE_EVERY = 10 -- seconds
+local pendingErrors = {} -- errors before the saved settings are loaded
 local lastErrorNotice = -100
+
+local function ErrorLog()
+    return ns.db and ns.db.errorLog or pendingErrors
+end
 
 local function Handler(err)
     local stack = debugstack and debugstack(2, 12, 0) or ""
     return { message = tostring(err), stack = stack }
 end
 
+local function Version()
+    return C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "?"
+end
+
 local function Record(where, info)
-    local entry = errorIndex[info.message]
-    if entry then
-        entry.count = entry.count + 1
-        return
+    local log = ErrorLog()
+    local now = date and date("%Y-%m-%d %H:%M:%S") or ""
+    for _, entry in ipairs(log) do
+        if entry.message == info.message then
+            entry.count = entry.count + 1
+            entry.last = now
+            return
+        end
     end
-    entry = { message = info.message, stack = info.stack, count = 1, where = where }
-    errorIndex[info.message] = entry
-    ns.errors[#ns.errors + 1] = entry
-    local now = GetTime and GetTime() or 0
-    if now - lastErrorNotice > 10 then
-        lastErrorNotice = now
-        ns.Print(("|cffff8040hit an error (%d so far). Type /fqln errors to copy the details.|r"):format(#ns.errors))
+    if #log >= MAX_ERRORS then table.remove(log, 1) end
+    log[#log + 1] = { message = info.message, stack = info.stack, count = 1, where = where,
+                      first = now, last = now, version = Version() }
+    local t = GetTime and GetTime() or 0
+    if t - lastErrorNotice > NOTICE_EVERY then
+        lastErrorNotice = t
+        ns.Print(("|cffff8040caught an error (%d different so far). Type /fqln errors to see or copy them.|r")
+            :format(#log))
     end
 end
 
@@ -51,17 +71,37 @@ function ns.Safe(where, fn)
     end
 end
 
+-- "A", "B", ... "Z", "AA", "AB", ...
+local function Letter(i)
+    local s = ""
+    repeat
+        local r = (i - 1) % 26
+        s = string.char(65 + r) .. s
+        i = math.floor((i - 1) / 26)
+    until i == 0
+    return s
+end
+
 function ns.ErrorReport()
-    if #ns.errors == 0 then return "No errors recorded since the last /reload." end
-    local version = C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "?"
-    local out = { ("QuestLine Navigator %s: %d different errors"):format(version, #ns.errors) }
-    for i, e in ipairs(ns.errors) do
+    local log = ErrorLog()
+    if #log == 0 then return "QuestLine Navigator " .. Version() .. ": no errors recorded." end
+    local out = { ("QuestLine Navigator %s error log: %d different errors"):format(Version(), #log), "" }
+    for i, e in ipairs(log) do
+        out[#out + 1] = ("Error %s occurred %d %s (in %s, version %s, first %s, last %s)"):format(
+            Letter(i), e.count, e.count == 1 and "time" or "times", e.where or "?", e.version or "?",
+            e.first or "?", e.last or "?")
+    end
+    for i, e in ipairs(log) do
         out[#out + 1] = ""
-        out[#out + 1] = ("#%d  (%dx, in %s)"):format(i, e.count, e.where)
+        out[#out + 1] = ("--- Error %s ---"):format(Letter(i))
         out[#out + 1] = e.message
-        out[#out + 1] = e.stack
+        if e.stack and e.stack ~= "" then out[#out + 1] = e.stack end
     end
     return table.concat(out, "\n")
+end
+
+function ns.ClearErrors()
+    wipe(ErrorLog())
 end
 
 ---------------------------------------------------------------------------------------
@@ -82,6 +122,7 @@ ns.defaults = {
     list   = { shown = true, locked = false, minimized = false, textSize = 12, point = { "RIGHT", "RIGHT", -80, 60 } },
     collapsed = { notWorth = true, trivial = true }, -- list sections folded shut
     arrowFrame = { locked = false, textSize = 12, point = { "TOP", "TOP", 0, -140 } },
+    errorLog = {}, -- see the error log above
 }
 
 local function ApplyDefaults(db, defaults)
@@ -154,6 +195,9 @@ local function OnEvent(self, event, arg1, arg2)
         ForeverQuestLineNavigatorDB = ForeverQuestLineNavigatorDB or {}
         ApplyDefaults(ForeverQuestLineNavigatorDB, ns.defaults)
         ns.db = ForeverQuestLineNavigatorDB
+        -- errors caught before this point move into the saved log
+        for _, e in ipairs(pendingErrors) do table.insert(ns.db.errorLog, e) end
+        wipe(pendingErrors)
         self:UnregisterEvent("ADDON_LOADED")
 
     elseif event == "PLAYER_LOGIN" then

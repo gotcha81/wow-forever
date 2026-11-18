@@ -113,7 +113,7 @@ local function Help()
     print("  /fqln arrowtext <8-24>  - text size under the arrow (now " .. ns.db.arrowFrame.textSize .. ")")
     print("  /fqln lock|unlock arrow|window  - pin or free a position (or use the padlocks)")
     print("  /fqln debug   - position / facing values (if the arrow does not turn)")
-    print("  /fqln errors  - copy the errors this addon caught since the last /reload")
+    print("  /fqln errors  - the error log (copy window); /fqln errors clear empties it")
     print("  /fqln riding auto|none|60|100  - riding speed (auto detects it)")
     print("  /fqln ahead <levels>  - list chains that unlock within this many levels (now " .. ns.db.levelAhead .. ")")
     print("  /fqln wait <seconds>  - boat/zeppelin 'just missed it' wait (now " .. ns.db.boatWait .. ")")
@@ -186,7 +186,12 @@ local function SlashCommand(input)
     elseif cmd == "debug" then
         Debug()
     elseif cmd == "errors" then
-        ns.ShowCopy("QuestLine Navigator: errors", ns.ErrorReport())
+        if arg == "clear" then
+            ns.ClearErrors()
+            ns.Print("error log cleared.")
+        else
+            ns.ShowCopy("QuestLine Navigator: error log", ns.ErrorReport())
+        end
     elseif cmd == "arrowtext" then
         local n = tonumber(arg)
         if n then
