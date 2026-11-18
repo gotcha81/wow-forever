@@ -4,7 +4,8 @@
 --     - exact: where you stand when you talk to an NPC (you are within a few yards)
 --     - rough: where you stand when you target / mouse over a friendly or neutral
 --       NPC that is close (about 28 yards); only used when nothing better is known
---  2. The game's own flight data (C_TaxiMap): exact flight master positions
+--  2. The game's own flight data (C_TaxiMap): exact flight master positions;
+--     spots recorded on Forever by forever-db (optional addon ForeverDB)
 --  3. QuestieDB spawns (and its walking paths for NPCs that move around)
 --  4. Coordinates you type yourself (/fqln pin, see Commands.lua)
 --
@@ -219,6 +220,12 @@ function S:Points(id)
                 if p and not Known(p) then out[#out + 1] = p end
             end
         end
+    end
+
+    -- spots recorded on Forever by forever-db's players
+    for _, spot in ipairs(ns.ForeverDBSource:NpcSpots(id) or {}) do
+        local p = S.MakePoint(spot[1], spot[2], spot[3], "recorded on Forever (forever-db)")
+        if p and not Known(p) then out[#out + 1] = p end
     end
 
     local flightMaster = IsFlightMaster(id)

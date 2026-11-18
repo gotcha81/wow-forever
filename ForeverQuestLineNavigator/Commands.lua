@@ -116,6 +116,8 @@ local function Help()
     print("  /fqln npc [name]  - the NPCs tab: find a friendly NPC and mark it on the map")
     print("  /fqln pin [zone] x y [name]  - mark your own coordinates (e.g. from Wowhead)")
     print("  /fqln unmark  - remove the NPC marker")
+    print("  /fqln killtime <s>  - seconds you take per quest mob (route timing, now " .. db.killSeconds .. ")")
+    print("  /fqln dungeontime <min>  - minutes per dungeon run (now " .. db.dungeonMinutes .. ")")
     print("  /fqln dungeoncheck on|off  - list missing quests when you enter a dungeon")
     print("  /fqln nearby on|off  - the Nearby quest targets window")
     print("  /fqln debug   - position / facing values (if the arrow does not turn)")
@@ -142,6 +144,12 @@ local function Status()
         local t = TOGGLES[name]
         print(("  %s: %s"):format(t.label, OnOff(db[t.key])))
     end
+    local R = ns.Router
+    print(("  Route planning: travel times %s, ForeverDB %s, plan ~%d min at ~%s XP/h"):format(
+        ns.Travel:Available() and "|cff40ff40from Shortest Path Forever|r" or "straight line (Shortest Path Forever not found)",
+        ns.ForeverDBSource.available and ("|cff40ff40" .. tostring(ns.ForeverDBSource.build) .. "|r")
+            or (db.useForeverDB and "not found" or "off"),
+        R.minutes or 0, ns.XP.Format(R.xpPerHour or 0)))
     print(("  NPC positions: %d NPCs learned by playing, %d flight points from the game"):format(
         ns.NpcSources:LearnedCount(), #ns.NpcSources:FlightNodes()))
     local wantedCount = 0
@@ -207,6 +215,16 @@ local function SlashCommand(input)
         ns.List.picking = false
         ns.List:SetShown(true)
         if rawArg ~= "" then ns.List.searchBox:SetText(rawArg) end
+    elseif cmd == "killtime" or cmd == "dungeontime" then
+        local key = cmd == "killtime" and "killSeconds" or "dungeonMinutes"
+        local n = tonumber(arg)
+        if n and n > 0 and n <= 180 then
+            db[key] = math.floor(n)
+            ns.Print(("%s: %d %s"):format(cmd, db[key], cmd == "killtime" and "seconds per mob" or "minutes per run"))
+            ns.RequestRefresh(0)
+        else
+            ns.Print(("%s is %d. Use: /fqln %s <number>"):format(cmd, db[key], cmd))
+        end
     elseif cmd == "pin" then
         local map, x, y, name = ns.NpcSources:ParsePin(rawArg)
         if not map then

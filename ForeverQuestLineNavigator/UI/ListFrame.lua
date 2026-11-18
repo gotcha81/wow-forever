@@ -236,7 +236,7 @@ function L:UpdateMini()
     local number = 1
     for i, s in ipairs(ns.Planner.route) do if s == stop then number = i; break end end
     local yards = ns.Planner:DistanceTo(stop)
-    self.mini:SetText(("%d. %s%s%s"):format(number, ns.Widgets.StateTag(stop.state), stop.name,
+    self.mini:SetText(("%d. %s%s%s"):format(number, ns.Widgets.StateTag(stop.state, stop.planned), stop.name,
         yards and ("  ·  %d yd"):format(yards) or ""))
 end
 
@@ -560,13 +560,14 @@ function L:Fill(row, item)
         if stop.primary and #stop.primary.line.steps > 1 then
             stepText = (" |cff808080(%d/%d)|r"):format(stop.primary.index, #stop.primary.line.steps)
         end
-        row.line1:SetText(LevelTag(stop.level) .. ns.Widgets.StateTag(stop.state) .. stop.name .. stepText)
+        row.line1:SetText(LevelTag(stop.level) .. ns.Widgets.StateTag(stop.state, stop.planned) .. stop.name .. stepText)
         local parts = ""
         if stop.primary and #stop.primary.line.parts > 1 then
             local line = stop.primary.line
             parts = ("  ·  part %d/%d"):format(line.partOf[stop.questId] or 1, #line.parts)
         end
-        row.line2:SetText(ACTION[stop.state] .. "  ·  " .. WhereText(stop) .. parts .. "  ·  " .. DistanceText(stop))
+        local eta = stop.eta and ("  ·  |cff808080at ~%d min|r"):format(math.floor(stop.eta / 60 + 0.5)) or ""
+        row.line2:SetText((ACTION[stop.state] or "") .. "  ·  " .. WhereText(stop) .. parts .. "  ·  " .. DistanceText(stop) .. eta)
         row.line3:SetText(planner:XPText(stop))
         if item.number then
             row.badge:Show()
@@ -684,7 +685,13 @@ function L:Update()
         return
     end
 
-    Section("route", "Route", planner.route, function(stop, i) return { stop = stop, number = i } end)
+    local R = ns.Router
+    local routeTitle = "Route"
+    if R.minutes and R.minutes > 0 then
+        routeTitle = ("Route |cff808080~%d min, ~%s XP/h%s|r"):format(R.minutes, ns.XP.Format(R.xpPerHour or 0),
+            R.realTravel and "" or ", straight-line travel")
+    end
+    Section("route", routeTitle, planner.route, function(stop, i) return { stop = stop, number = i } end)
     Section("unlocated", "Not on the map", planner.unlocated, function(stop) return { stop = stop } end)
     Section("upcoming", "Unlocks soon", planner.upcoming, function(u) return { upcoming = u } end)
     Section("notWorth", "Not worth it right now", planner.notWorth, function(stop) return { stop = stop } end)

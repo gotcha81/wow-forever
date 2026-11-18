@@ -7,8 +7,8 @@
 --    can cross several dungeons; it is split into parts, one per dungeon.
 -- 3. Update (on every quest/level/zone event): for each line, what is done, what can
 --    be done now, how much XP is left, and whether it is trivial (grey).
--- 4. Route: stops are picked by value = XP (plus what the step unlocks further down
---    the line) per second of estimated travel, starting from where you stand.
+-- 4. Route: Router.lua orders the stops by XP per hour (travel + time spent),
+--    pickups -> objectives -> turn-ins, with dungeon quests done in one run.
 
 local _, ns = ...
 
@@ -731,83 +731,18 @@ function P:Update()
         end
     end
 
-    local speed = RUN_SPEED * (1 + self:Riding() / 100)
-
-    -- Value of a stop from a position; zone = only consider points in that zone.
-    local function Value(stop, fromX, fromY, fromInstance, opened, zone)
-        local bestPoint, bestTime
-        for _, point in ipairs(stop.points) do
-            if not zone or point.zone == zone then
-                local t = self:TravelSeconds(fromX, fromY, fromInstance, point, speed)
-                if not bestTime or t < bestTime then bestPoint, bestTime = point, t end
-            end
-        end
-        if not bestPoint then return nil end
-        local gain = stop.xp
-        for _, entry in ipairs(stop.lines) do
-            if not opened[entry.line] then
-                gain = gain + math.max(0, entry.line.eval.xpReach - stop.xp) * DOWNSTREAM_WEIGHT
-            end
-        end
-        return gain * stop.priority / bestTime, bestPoint, bestTime
-    end
-
-    local candidates, unlocated, notWorth = {}, {}, {}
-    local bestValue = 0
+    -- Order: Router.lua (XP per hour, pickups -> objectives -> turn-ins, dungeon runs).
+    local candidates, unlocated = {}, {}
     for _, stop in ipairs(stops) do
         if #stop.points == 0 then
             if not stop.world or stop.state ~= "pickup" then unlocated[#unlocated + 1] = stop end
         else
-            stop.value = Value(stop, px, py, pInstance, {}) or 0
-            if not stop.here and stop.value > bestValue then bestValue = stop.value end
             candidates[#candidates + 1] = stop
         end
     end
-    -- New pickups elsewhere that are far away for what they give stay off the route.
-    -- Everything in the zone you are in stays on it.
-    local remaining = {}
-    for _, stop in ipairs(candidates) do
-        local limit = stop.leadIn and LEAD_IN_WORTH or NOT_WORTH_SHARE
-        if not stop.here and stop.state == "pickup" and bestValue > 0 and stop.value < bestValue * limit then
-            stop.reason = stop.leadIn and "grey start that does not fit your route"
-                or "far away for the XP it gives"
-            notWorth[#notWorth + 1] = stop
-        else
-            remaining[#remaining + 1] = stop
-        end
-    end
-
-    -- Zone by zone: finish the zone you are in, then go where the value is
-    -- highest and finish that zone, and so on.
-    local route, opened = {}, {}
-    local cx, cy, cInstance, currentZone = px, py, pInstance, hereZone
-    while #remaining > 0 and #route < db.maxStops do
-        local top, bestStop, bestPoint, bestIndex, bestTime
-        if currentZone then
-            for i, stop in ipairs(remaining) do
-                local value, point, seconds = Value(stop, cx, cy, cInstance, opened, currentZone)
-                if value and (not top or value > top) then
-                    top, bestStop, bestPoint, bestIndex, bestTime = value, stop, point, i, seconds
-                end
-            end
-        end
-        if not bestStop then
-            for i, stop in ipairs(remaining) do
-                local value, point, seconds = Value(stop, cx, cy, cInstance, opened)
-                if value and (not top or value > top) then
-                    top, bestStop, bestPoint, bestIndex, bestTime = value, stop, point, i, seconds
-                end
-            end
-            if not bestStop then break end
-            currentZone = bestPoint.zone
-        end
-        bestStop.point, bestStop.seconds = bestPoint, bestTime
-        route[#route + 1] = bestStop
-        table.remove(remaining, bestIndex)
-        for _, entry in ipairs(bestStop.lines) do opened[entry.line] = true end
-        cx, cy, cInstance = bestPoint.wx, bestPoint.wy, bestPoint.instance
-    end
-    for _, stop in ipairs(remaining) do unlocated[#unlocated + 1] = stop end
+    local from = ns.Router:PlayerPoint(px, py, pInstance)
+    local route, notWorth, left = ns.Router:Plan(candidates, { from = from, level = level })
+    for _, stop in ipairs(left) do unlocated[#unlocated + 1] = stop end
 
     table.sort(upcoming, function(a, b) return a.required < b.required end)
     table.sort(notWorth, function(a, b) return (a.value or 0) > (b.value or 0) end)

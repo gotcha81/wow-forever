@@ -87,7 +87,8 @@ function W.TextButton(parent, width, height, label, tooltip, onClick)
 end
 
 -- Whether you are already on a quest, as a short coloured tag.
-function W.StateTag(state)
+function W.StateTag(state, planned)
+    if planned then return "|cffb0a0ff[Later]|r " end -- a step the route plans after an earlier one
     if state == "progress" then return "|cff4dc3ff[On quest]|r " end
     if state == "turnin" then return "|cff40ff40[Ready to turn in]|r " end
     return "|cffffd100[New]|r "

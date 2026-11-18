@@ -5,7 +5,8 @@
 --      loaded with C_QuestLog.RequestLoadQuestByID first; the answer arrives
 --      with the QUEST_DATA_LOAD_RESULT event.
 --   2. DungeonJournal's stored Forever values (only if it is installed).
---   3. Questie's estimate (Classic numbers, marked as an estimate).
+--   3. forever-db's reward XP at your level (only if ForeverDB is installed).
+--   4. Questie's estimate (Classic numbers, marked as an estimate).
 
 local _, ns = ...
 
@@ -79,6 +80,11 @@ function X:Get(questId)
     if dj then
         self.estimates[questId] = true
         return dj, true
+    end
+    local fdb = ns.ForeverDBSource:QuestXP(questId, UnitLevel("player"))
+    if fdb then
+        self.estimates[questId] = true
+        return fdb, true
     end
     local estimate = QuestieEstimate(questId)
     self.estimates[questId] = true

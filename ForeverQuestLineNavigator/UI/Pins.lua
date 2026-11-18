@@ -17,7 +17,7 @@ local function OnEnter(pin)
     if not stop then return end
     GameTooltip:SetOwner(pin, "ANCHOR_RIGHT")
     GameTooltip:SetText(("%d. %s"):format(pin.index, stop.name), 1, 1, 1)
-    GameTooltip:AddLine(ns.Widgets.StateTag(stop.state) .. (ACTION[stop.state] or ""), 1, 0.82, 0)
+    GameTooltip:AddLine(ns.Widgets.StateTag(stop.state, stop.planned) .. (ACTION[stop.state] or ""), 1, 0.82, 0)
     if stop.dungeon then GameTooltip:AddLine(stop.dungeon, 0.6, 0.8, 1) end
     GameTooltip:AddLine(ns.Planner:XPText(stop), 1, 0.82, 0)
     if stop.primary then

@@ -165,7 +165,7 @@ function A:Tick()
     else
         local number = ""
         for i, s in ipairs(ns.Planner.route) do if s == stop then number = i .. ". "; break end end
-        f.title:SetText(("%s%s%s: %s"):format(number, ns.Widgets.StateTag(stop.state), ACTION[stop.state] or "", stop.name))
+        f.title:SetText(("%s%s%s: %s"):format(number, ns.Widgets.StateTag(stop.state, stop.planned), ACTION[stop.state] or "", stop.name))
     end
     local zone = ns.Pos.MapName(point.zone or point.uiMapId) or ""
     f.where:SetText(point.inside and (point.inside .. " entrance, " .. zone) or zone)

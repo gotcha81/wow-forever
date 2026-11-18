@@ -23,6 +23,16 @@ Copy the `ForeverQuestLineNavigator` folder into `World of Warcraft\_forever_\In
   gives at least 35% of a level.
 - **Search** (the box under the tabs): searches every quest you can do by quest name, questline, dungeon,
   zone and the NPC that starts it. Grey quests are folded under a `+` row. Clears when the window closes.
+- **Route by XP per hour** (0.8.0): the route is planned about an hour ahead, picking each step for
+  the most XP per second of travel plus time spent (objectives from kill counts, `/fqln killtime`;
+  one dungeon run for all quests you hold for it, `/fqln dungeontime`). Picking up a quest adds its
+  objectives and turn-in later in the route (shown as **[Later]**), and a turn-in unlocks the next
+  quest of its questline. Dungeon runs wait while pickups for that dungeon are still close by.
+  The Route header shows the planned minutes and XP per hour.
+  - Optional **Shortest Path Forever** (GPL-3.0): real travel times with flight paths, boats,
+    zeppelins, portals and hearthstone, through its public API. Without it: straight-line distance.
+  - Optional **ForeverDB** (forever-db, GPL-3.0): quest XP at your level when the game has not told
+    us yet, and NPC spots recorded on Forever for the NPCs tab. Read at runtime only.
 - **Whole questline**: the **+** on a Route or Dungeon row opens every quest of its questline under it
   (step, level, done / on quest, where it starts and ends, XP); **-** closes it. Click a step to point
   the arrow there.

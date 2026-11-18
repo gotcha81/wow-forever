@@ -124,6 +124,9 @@ ns.defaults = {
     levelAhead   = 2,      -- list chains whose first step unlocks within this many levels
     boatWait     = 300,    -- seconds: "just missed it" wait for a boat or zeppelin
     maxStops     = 25,     -- numbered stops on the route
+    useForeverDB = true,   -- read the optional ForeverDB addon (Forever quest XP, NPC spots)
+    killSeconds  = 20,     -- seconds per quest mob, for the time a quest takes (/fqln killtime)
+    dungeonMinutes = 40,   -- minutes for one dungeon run (/fqln dungeontime)
     dungeonCheck = false,  -- list missing quests in chat when you enter a dungeon
     list   = { shown = true, locked = false, minimized = false, textSize = 12, tab = "route",
                point = { "RIGHT", "RIGHT", -80, 60 } }, -- list.dungeon = the dungeon picked in the Dungeon tab
@@ -229,6 +232,7 @@ local function OnEvent(self, event, arg1, arg2)
             return
         end
         ns.DungeonJournalSource:Init()
+        ns.ForeverDBSource:Init()
         ns.List:Create()
         ns.Arrow:Create()
         ns.Arrow:ClearOldGameWaypoint()
