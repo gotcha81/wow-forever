@@ -349,6 +349,7 @@ function P:BuildCatalog(onDone)
         if not ok then
             f:SetScript("OnUpdate", nil)
             ns.Print("|cffff5555could not read QuestieDB:|r " .. tostring(err))
+            ns.LogError("catalog", err, debugstack and debugstack(co) or "")
             return
         end
         if coroutine.status(co) == "dead" then

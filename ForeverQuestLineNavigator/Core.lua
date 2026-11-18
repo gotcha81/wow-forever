@@ -71,6 +71,11 @@ function ns.Safe(where, fn)
     end
 end
 
+-- For errors caught elsewhere (e.g. a coroutine) that should go into the log too.
+function ns.LogError(where, message, stack)
+    Record(where, { message = tostring(message), stack = stack or "" })
+end
+
 -- "A", "B", ... "Z", "AA", "AB", ...
 local function Letter(i)
     local s = ""

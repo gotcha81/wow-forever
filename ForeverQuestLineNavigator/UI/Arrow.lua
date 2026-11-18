@@ -50,10 +50,12 @@ function A:Create()
     local cog = W.IconButton(bar, 18, "Cog", "Settings", function() ns.Settings:Toggle() end)
     cog:SetPoint("LEFT", lock, "RIGHT", 6, 0)
     -- the bar stays while the mouse is over the arrow or the bar
-    bar:SetScript("OnUpdate", function(self, dt)
-        self.idle = (MouseIsOver(f) or MouseIsOver(self)) and 0 or (self.idle or 0) + dt
+    -- (the old global MouseIsOver does not exist on Forever; frames have IsMouseOver)
+    local function Over(frame) return frame.IsMouseOver and frame:IsMouseOver() end
+    bar:SetScript("OnUpdate", ns.Safe("arrow hover", function(self, dt)
+        self.idle = (Over(f) or Over(self)) and 0 or (self.idle or 0) + dt
         if self.idle > 0.4 then self:Hide() end
-    end)
+    end))
 
     f.tex = f:CreateTexture(nil, "ARTWORK")
     f.tex:SetAllPoints()

@@ -66,14 +66,14 @@ function B:Create()
     b:SetScript("OnLeave", GameTooltip_Hide)
 
     b:SetScript("OnDragStart", function(self)
-        self:SetScript("OnUpdate", function()
+        self:SetScript("OnUpdate", ns.Safe("minimap drag", function()
             local mx, my = Minimap:GetCenter()
             local scale = Minimap:GetEffectiveScale()
             local cx, cy = GetCursorPosition()
             cx, cy = cx / scale, cy / scale
             db.angle = math.deg(math.atan2(cy - my, cx - mx)) % 360
             Place(self, db.angle)
-        end)
+        end))
     end)
     b:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
 
