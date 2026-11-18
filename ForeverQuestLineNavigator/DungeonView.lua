@@ -206,6 +206,13 @@ function D:Entry(questId, level, levelXP)
     return e
 end
 
+-- Order in lists: what you can act on first, then by level and name.
+function D.SortEntries(a, b)
+    if ORDER[a.state] ~= ORDER[b.state] then return ORDER[a.state] < ORDER[b.state] end
+    if (a.level or 0) ~= (b.level or 0) then return (a.level or 0) < (b.level or 0) end
+    return a.name < b.name
+end
+
 -- All quests of a dungeon: open (shown), done, ignored, and how many grey ones are hidden.
 function D:Entries(name)
     local d = self:Find(name)
@@ -225,11 +232,7 @@ function D:Entries(name)
             result.open[#result.open + 1] = e
         end
     end
-    local function Sort(a, b)
-        if ORDER[a.state] ~= ORDER[b.state] then return ORDER[a.state] < ORDER[b.state] end
-        if (a.level or 0) ~= (b.level or 0) then return (a.level or 0) < (b.level or 0) end
-        return a.name < b.name
-    end
+    local Sort = D.SortEntries
     table.sort(result.open, Sort)
     table.sort(result.done, Sort)
     table.sort(result.ignored, Sort)

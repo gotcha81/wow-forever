@@ -123,6 +123,54 @@ function L:Create()
     self.picker.label:SetJustifyH("LEFT")
     self.picker.label:SetWordWrap(false)
 
+    -- Search box: searches all quests while it has text (both tabs).
+    local box = CreateFrame("EditBox", nil, f, "BackdropTemplate")
+    box:SetPoint("TOPLEFT", 10, -54)
+    box:SetPoint("RIGHT", f, "RIGHT", -12, 0)
+    box:SetHeight(20)
+    box:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 8, edgeSize = 8,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 },
+    })
+    box:SetBackdropColor(0, 0, 0, 0.6)
+    box:SetBackdropBorderColor(0.3, 0.55, 0.9, 1)
+    box:SetFontObject(ChatFontNormal)
+    box:SetTextInsets(6, 22, 0, 0)
+    box:SetAutoFocus(false)
+    box:SetMaxLetters(60)
+    local placeholder = box:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    placeholder:SetPoint("LEFT", 7, 0)
+    placeholder:SetText("Search quests, questlines, dungeons, zones, NPCs")
+    local clear = W.TextButton(box, 16, 16, "x", "Clear the search", function()
+        box:SetText("")
+        box:ClearFocus()
+    end)
+    clear:SetPoint("RIGHT", -2, 0)
+    clear:Hide()
+    local pending
+    box:SetScript("OnTextChanged", ns.Safe("search box", function(self)
+        local text = self:GetText() or ""
+        placeholder:SetShown(text == "" and not self:HasFocus())
+        clear:SetShown(text ~= "")
+        if pending then pending:Cancel() end
+        pending = C_Timer.NewTimer(0.3, ns.Safe("search", function()
+            L.searchText = text:match("^%s*(.-)%s*$")
+            if L.searchText ~= "" then
+                ns.Search:Build(function() L:Update() end)
+            end
+            L:Update()
+        end))
+    end))
+    box:SetScript("OnEditFocusGained", function() placeholder:Hide() end)
+    box:SetScript("OnEditFocusLost", function(self) placeholder:SetShown((self:GetText() or "") == "") end)
+    box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    box:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    self.searchBox = box
+    -- the search starts empty each time the window opens
+    f:SetScript("OnHide", function() box:SetText(""); L.searchText = nil; L.showGrey = false end)
+
     -- one line shown while minimized: the next stop
     self.mini = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     self.mini:SetPoint("TOPLEFT", 12, -34)
@@ -131,7 +179,7 @@ function L:Create()
     self.mini:SetWordWrap(false)
 
     local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", 8, -56)
+    scroll:SetPoint("TOPLEFT", 8, -80)
     scroll:SetPoint("BOTTOMRIGHT", -28, 10)
     local content = CreateFrame("Frame", nil, scroll)
     content:SetSize(WIDTH - 40, 10)
@@ -165,6 +213,7 @@ function L:SetMinimized(minimized)
     self.tabRoute:SetShown(not minimized)
     self.tabDungeon:SetShown(not minimized)
     self.picker:SetShown(not minimized and ns.db.list.tab == "dungeon")
+    self.searchBox:SetShown(not minimized)
     -- keep the title bar where it is: grow / shrink downwards
     local top, left = f:GetTop(), f:GetLeft()
     f:SetHeight(minimized and MINIMIZED_HEIGHT or HEIGHT)
@@ -262,6 +311,9 @@ local function RowTooltip(row)
         GameTooltip:SetText(d.name, 1, 1, 1)
         GameTooltip:AddLine(("%d quests in total"):format(#d.quests), 0.8, 0.8, 0.8)
         GameTooltip:AddLine("Click: show its quests", 0.5, 0.5, 0.5)
+    elseif item.toggleGrey then
+        GameTooltip:SetText(L.showGrey and "Hide grey quests" or "Show grey quests too", 1, 1, 1)
+        GameTooltip:AddLine("Grey quests give little XP at your level and lead to nothing worth it.", 0.8, 0.8, 0.8, true)
     elseif item.ignoredEntry then
         GameTooltip:SetText(tostring(item.ignoredEntry.name), 0.7, 0.7, 0.7)
         GameTooltip:AddLine("Ignored on this character", 0.8, 0.8, 0.8)
@@ -337,7 +389,11 @@ function L:GetRow(index)
             return
         end
         if item.header then
+            if item.section == "search" then return end
             ns.db.collapsed[item.section] = not ns.db.collapsed[item.section]
+            L:Update()
+        elseif item.toggleGrey then
+            L.showGrey = not L.showGrey
             L:Update()
         elseif item.number then
             ns.Arrow:Pin(item.stop)
@@ -402,6 +458,12 @@ function L:Fill(row, item)
     if item.message then
         row:SetHeight(HEADER_HEIGHT)
         row.line1:SetText(item.message)
+        return
+    end
+    if item.toggleGrey then
+        row:SetHeight(HEADER_HEIGHT)
+        row.header:SetText(("|cff9d9d9d%s %d grey (trivial) %s|r"):format(L.showGrey and "-" or "+",
+            item.count, item.count == 1 and "quest" or "quests"))
         return
     end
     local planner = ns.Planner
@@ -494,6 +556,12 @@ function L:Update()
         items[#items + 1] = { header = title, section = key, count = #list }
         if collapsed[key] then return end
         for i, entry in ipairs(list) do items[#items + 1] = make(entry, i) end
+    end
+
+    if self.searchText and self.searchText ~= "" then
+        self:SearchItems(items)
+        self:Layout(items)
+        return
     end
 
     if tab == "dungeon" then
@@ -612,6 +680,45 @@ function L.EntryXP(e)
         end
     end
     return text
+end
+
+---------------------------------------------------------------------------------------
+-- Search results
+---------------------------------------------------------------------------------------
+
+local MAX_ROWS = 60
+
+function L:SearchItems(items)
+    local S = ns.Search
+    if not S.ready then
+        items[1] = { message = "|cff808080Building the quest index...|r" }
+        return
+    end
+    local r = S:Find(self.searchText)
+    local shown = #r.open + (self.showGrey and #r.grey or 0)
+    items[#items + 1] = { header = ("Search: \"%s\""):format(self.searchText), section = "search",
+                          count = #r.open }
+    for i, e in ipairs(r.open) do
+        if i > MAX_ROWS then break end
+        items[#items + 1] = { entry = e }
+    end
+    if #r.open == 0 then
+        items[#items + 1] = { message = #r.grey > 0 and "|cff808080Only grey quests match.|r"
+            or "|cff808080No quests match.|r" }
+    end
+    if #r.grey > 0 then
+        items[#items + 1] = { toggleGrey = true, count = #r.grey }
+        if self.showGrey then
+            for i, e in ipairs(r.grey) do
+                if i > MAX_ROWS then break end
+                items[#items + 1] = { entry = e }
+            end
+        end
+    end
+    if r.capped or #r.open > MAX_ROWS or (self.showGrey and #r.grey > MAX_ROWS) then
+        items[#items + 1] = { message = ("|cff808080%d quests match, not all are shown. Type more to narrow it.|r")
+            :format(r.total) }
+    end
 end
 
 function L:DungeonItems(items, Section)

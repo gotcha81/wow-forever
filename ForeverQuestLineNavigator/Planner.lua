@@ -260,7 +260,7 @@ function P:BuildCatalog(onDone)
         local classes = Q:Quest(id, "requiredClasses")
         return type(classes) ~= "number" or classes == 0 or band(classes, classMask) ~= 0
     end
-    self.RaceOk = RaceOk
+    self.RaceOk, self.ClassOk = RaceOk, ClassOk
 
     local function AddFollower(pre, id)
         local list = followers[pre]

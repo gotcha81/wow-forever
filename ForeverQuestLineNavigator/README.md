@@ -21,6 +21,8 @@ Copy the `ForeverQuestLineNavigator` folder into `World of Warcraft\_forever_\In
 - **Dungeon tab** (`/fqln d`, or `/fqln d <name>`): pick a dungeon to see all its quests: done, on it,
   or what you are missing in the chain and where that starts. Grey quests are hidden unless what follows
   gives at least 35% of a level.
+- **Search** (the box under the tabs): searches every quest you can do by quest name, questline, dungeon,
+  zone and the NPC that starts it. Grey quests are folded under a `+` row. Clears when the window closes.
 - Right-click a quest to **ignore** its questline (saved per character). Ignored ones are listed at the
   bottom of the Route tab; right-click there to bring them back.
 - Optional (Settings, off by default): when you enter a dungeon, chat lists the quests for it you could have
