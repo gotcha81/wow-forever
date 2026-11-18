@@ -8,7 +8,7 @@
 
 local ADDON_NAME, ns = ...
 
-local L = { rows = {} }
+local L = { rows = {}, expanded = {} } -- expanded[chainKey] = true while a questline is open
 ns.List = L
 
 local MEDIA = "Interface\\AddOns\\" .. ADDON_NAME .. "\\Media\\"
@@ -329,6 +329,17 @@ local function RowTooltip(row)
         GameTooltip:SetText(planner:LineName(line), 1, 1, 1)
         if line.eval.reason then GameTooltip:AddLine("Trivial: " .. line.eval.reason, 0.7, 0.7, 0.7, true) end
         AddLineDetails(line, nil)
+    elseif item.chainStep then
+        local c = item.chainStep
+        local start, finish = ns.DungeonView:Ends(c.id)
+        GameTooltip:SetText(planner:QuestName(c.id), 1, 1, 1)
+        GameTooltip:AddLine(("Step %d of %d  ·  %s"):format(c.index, #c.line.steps, planner:LineName(c.line)), 0.6, 0.85, 1)
+        GameTooltip:AddLine("Starts: " .. (start or "not known"), 0.8, 0.8, 0.8)
+        GameTooltip:AddLine("Ends: " .. (finish or "not known"), 0.8, 0.8, 0.8)
+        GameTooltip:AddLine(L.ChainXP(c.id), 1, 0.82, 0)
+        local blocker = planner:BlockerText(c.line, c.index)
+        if blocker then GameTooltip:AddLine(blocker, 1, 0.6, 0.2, true) end
+        if L.ChainState(c) ~= "done" then GameTooltip:AddLine("Click: point the arrow there", 0.5, 0.5, 0.5) end
     elseif item.npc then
         local n = item.npc
         GameTooltip:SetText(n.name, 0.4, 1, 0.4)
@@ -398,6 +409,16 @@ function L:GetRow(index)
 
     row.header = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     row.header:SetPoint("BOTTOMLEFT", 4, 4)
+
+    -- +/- : show / hide every quest of the questline under this row
+    row.expand = ns.Widgets.TextButton(row, 16, 16, "+", "Show / hide the whole questline", function(self)
+        local key = self:GetParent().item and self:GetParent().item.chainKey
+        if not key then return end
+        L.expanded[key] = not L.expanded[key] or nil
+        L:Update()
+    end)
+    row.expand:SetPoint("TOPRIGHT", -2, -3)
+    row.expand:Hide()
     self:ApplyFont(row)
 
     row:SetScript("OnEnter", ns.Safe("list tooltip", RowTooltip))
@@ -439,6 +460,13 @@ function L:GetRow(index)
             ns.db.list.dungeon = item.dungeonPick.name
             L.picking = false
             L:Update()
+        elseif item.chainStep then
+            local c = item.chainStep
+            local state = L.ChainState(c)
+            if state ~= "done" then
+                local stop = ns.DungeonView.MakeStop(c.id, state == "todo" and "pickup" or state)
+                if stop.point then ns.Arrow:Pin(stop) else ns.Print("no map position known for that quest.") end
+            end
         elseif item.npc then
             if IsShiftKeyDown() then
                 ns.NpcFinder:ShareUrl(item.npc.id)
@@ -481,6 +509,7 @@ function L:ApplyFont(row)
         fs:SetPoint("TOPLEFT", 30, y)
         fs:SetPoint("RIGHT", row, "RIGHT", -4, 0)
     end
+    row.line1:SetPoint("RIGHT", row, "RIGHT", -22, 0) -- room for the +/- button
     ROW_HEIGHT = -y3 + small + 6
     HEADER_HEIGHT = size + 12
 end
@@ -501,6 +530,12 @@ function L:Fill(row, item)
     row.badge:Hide()
     row.number:SetText("")
     row:SetHeight(item.header and HEADER_HEIGHT or ROW_HEIGHT)
+    row.expand:SetShown(item.chainKey ~= nil)
+    if item.chainKey then row.expand.label:SetText(L.expanded[item.chainKey] and "-" or "+") end
+    if item.chainStep then
+        self:FillChainStep(row, item.chainStep)
+        return
+    end
 
     if item.header then
         local folded = ns.db.collapsed[item.section]
@@ -645,7 +680,7 @@ function L:Update()
 
     if tab == "dungeon" then
         self:DungeonItems(items, Section)
-        self:Layout(items)
+        self:Layout(self:WithChains(items))
         return
     end
 
@@ -660,7 +695,7 @@ function L:Update()
         items[1] = { message = "No dungeon quests found for your level right now." }
         items[2] = { message = "|cff808080Try /fqln ahead 5 to look further ahead.|r" }
     end
-    self:Layout(items)
+    self:Layout(self:WithChains(items))
 end
 
 function L:Layout(items)
@@ -875,4 +910,68 @@ function L:NpcItems(items)
         items[#items + 1] = { message = ("|cff808080%d match, the nearest %d are shown. Type more to narrow it.|r")
             :format(r.total, #r.list) }
     end
+end
+
+---------------------------------------------------------------------------------------
+-- Whole questline under a row (the +/- button), Route and Dungeon tabs
+---------------------------------------------------------------------------------------
+
+local function ChainOf(item)
+    if item.stop and item.stop.primary then
+        return item.stop.primary.line, "s:" .. item.stop.questId .. ":" .. item.stop.state, item.stop.questId
+    end
+    if item.entry and item.entry.line then
+        return item.entry.line, "e:" .. item.entry.questId, item.entry.questId
+    end
+end
+
+-- done / turnin / progress (in your log) / todo
+function L.ChainState(c)
+    local P = ns.Planner
+    if P:StepDone(c.line, c.id) then return "done" end
+    if P.InLog(c.id) then return P.IsReadyToTurnIn(c.id) and "turnin" or "progress" end
+    return "todo"
+end
+
+function L.ChainXP(id)
+    local xp, estimate = ns.XP:Get(id)
+    return "XP " .. (estimate and "~" or "") .. ns.XP.Format(xp)
+end
+
+function L:WithChains(items)
+    local out = {}
+    for _, item in ipairs(items) do
+        out[#out + 1] = item
+        local line, key, questId = ChainOf(item)
+        if line and #line.steps > 1 then
+            item.chainKey = key
+            if self.expanded[key] then
+                for index, id in ipairs(line.steps) do
+                    out[#out + 1] = { chainStep = { line = line, index = index, id = id, current = id == questId } }
+                end
+            end
+        end
+    end
+    return out
+end
+
+local CHAIN_TAG = {
+    done     = "|cff40c040[Done]|r ",
+    turnin   = "|cff40ff40[Ready to turn in]|r ",
+    progress = "|cff4dc3ff[On quest]|r ",
+    todo     = "",
+}
+
+function L:FillChainStep(row, c)
+    local P = ns.Planner
+    local state = L.ChainState(c)
+    local name = P:QuestName(c.id)
+    if state == "done" then name = "|cff9d9d9d" .. name .. "|r" end
+    if c.current then name = "|cffffd100> |r" .. name end
+    local level = P:QuestLevel(c.id)
+    row.line1:SetText(("    |cff808080%d/%d|r %s%s%s"):format(c.index, #c.line.steps, LevelTag(level),
+        CHAIN_TAG[state], name))
+    local start, finish = ns.DungeonView:Ends(c.id)
+    row.line2:SetText("      Start: " .. (start or "?") .. "   ->   End: " .. (finish or "?"))
+    row.line3:SetText("      " .. L.ChainXP(c.id))
 end

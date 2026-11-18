@@ -23,6 +23,9 @@ Copy the `ForeverQuestLineNavigator` folder into `World of Warcraft\_forever_\In
   gives at least 35% of a level.
 - **Search** (the box under the tabs): searches every quest you can do by quest name, questline, dungeon,
   zone and the NPC that starts it. Grey quests are folded under a `+` row. Clears when the window closes.
+- **Whole questline**: the **+** on a Route or Dungeon row opens every quest of its questline under it
+  (step, level, done / on quest, where it starts and ends, XP); **-** closes it. Click a step to point
+  the arrow there.
 - **NPCs tab**: search friendly NPCs by name, title (flight master, innkeeper, weapon trainer) or zone.
   Click one to mark every place it stands on the world map and minimap (green pins), with the arrow
   pointing at the nearest. Esc, the x, right-click or marking another NPC removes the marker, and it

@@ -146,6 +146,43 @@ local function MakeStop(questId, state)
     return stop
 end
 
+D.MakeStop = MakeStop
+
+-- "Name, Zone" of who / what gives a quest (kind "startedBy") or takes it back
+-- ("finishedBy"). Cached, the data does not change.
+local endsCache = {}
+local function Who(questId, field)
+    local Q = ns.QuestieSource
+    local list = Q:Quest(questId, field)
+    if type(list) ~= "table" then return nil end
+    local name, points
+    if list[1] and list[1][1] then
+        name, points = Q:Npc(list[1][1], "name"), Q:Points("npc", list[1][1])
+    elseif list[2] and list[2][1] then
+        name, points = Q:Object(list[2][1], "name"), Q:Points("object", list[2][1])
+    elseif list[3] and list[3][1] then
+        return "item: " .. (Q:Item(list[3][1], "name") or ("#" .. list[3][1]))
+    end
+    if type(name) ~= "string" then return nil end
+    local p = points and points[1]
+    if p then
+        local zone = ns.Pos.MapName(ns.Pos.Zone(p[1]))
+        if p.inside then zone = p.inside end
+        if zone then name = name .. ", " .. zone end
+    end
+    return name
+end
+
+-- start, end texts of a quest ("Name, Zone"; nil when not known)
+function D:Ends(questId)
+    local cached = endsCache[questId]
+    if not cached then
+        cached = { Who(questId, "startedBy") or false, Who(questId, "finishedBy") or false }
+        endsCache[questId] = cached
+    end
+    return cached[1] or nil, cached[2] or nil
+end
+
 -- Status of one dungeon quest. Returns a table, see the fields below.
 function D:Entry(questId, level, levelXP)
     local P = ns.Planner
