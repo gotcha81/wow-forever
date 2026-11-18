@@ -93,3 +93,15 @@ function W.StateTag(state, planned)
     if state == "turnin" then return "|cff40ff40[Ready to turn in]|r " end
     return "|cffffd100[New]|r "
 end
+
+-- Addons cannot open a web browser. This puts an address in the chat box, selected,
+-- so Ctrl+C copies it (and Esc closes the box again).
+function W.ShareUrl(url)
+    local open = ChatFrame_OpenChat or (ChatFrameUtil and ChatFrameUtil.OpenChat)
+    local ok = open and pcall(open, url)
+    if not ok then ns.Print(url); return end
+    local box = (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow()) or LAST_ACTIVE_CHAT_EDIT_BOX
+    if box and box.HighlightText then pcall(box.HighlightText, box) end
+end
+
+function W.QuestUrl(questId) return ("https://www.wowhead.com/forever/quest=%d"):format(questId) end

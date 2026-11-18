@@ -124,6 +124,7 @@ ns.defaults = {
     levelAhead   = 2,      -- list chains whose first step unlocks within this many levels
     boatWait     = 300,    -- seconds: "just missed it" wait for a boat or zeppelin
     maxStops     = 25,     -- numbered stops on the route
+    wowheadLinks = true,   -- Shift-click a quest: its Wowhead (Forever) address in the chat box
     useForeverDB = true,   -- read the optional ForeverDB addon (Forever quest XP, NPC spots)
     killSeconds  = 20,     -- seconds per quest mob, for the time a quest takes (/fqln killtime)
     dungeonMinutes = 40,   -- minutes for one dungeon run (/fqln dungeontime)

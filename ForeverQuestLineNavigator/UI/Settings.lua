@@ -77,7 +77,7 @@ function S:Create()
     local db = ns.db
     local f = CreateFrame("Frame", "ForeverQuestLineNavigatorSettings", UIParent, "BackdropTemplate")
     self.frame = f
-    f:SetSize(WIDTH, 520)
+    f:SetSize(WIDTH, 570)
     f:SetPoint("CENTER")
     f:SetFrameStrata("DIALOG")
     f:SetClampedToScreen(true)
@@ -139,6 +139,11 @@ function S:Create()
         "A small window lists quest mobs and NPCs close to you, with a click to target them. Finds them by nameplates (V key), target, mouseover and combat."))
     Add(Checkbox(f, "Also inside dungeons", -438, function() return db.nearby.inInstances end,
         function(v) db.nearby.inInstances = v; ns.Nearby:Redraw() end))
+
+    Header(f, "Links", -472)
+    Add(Checkbox(f, "Shift-click a quest: Wowhead link", -490, function() return db.wowheadLinks end,
+        function(v) db.wowheadLinks = v end,
+        "Shift + left-click a quest in the list puts its Wowhead (Forever) address in the chat box, selected: press Ctrl+C to copy it. Addons cannot open a browser."))
 
     local hint = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     hint:SetPoint("BOTTOMLEFT", 14, 12)

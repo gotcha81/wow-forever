@@ -270,6 +270,14 @@ local function AddLineDetails(line, index)
     end
 end
 
+-- The quest a row is about (for Shift-click: Wowhead link).
+local function QuestIdOf(item)
+    if item.stop then return item.stop.questId end
+    if item.entry then return item.entry.questId end
+    if item.chainStep then return item.chainStep.id end
+    if item.upcoming then return item.upcoming.questId end
+end
+
 local function RowTooltip(row)
     local item = row.item
     if not item or item.header then return end
@@ -376,6 +384,9 @@ local function RowTooltip(row)
     elseif item.message then
         return
     end
+    if ns.db.wowheadLinks and QuestIdOf(item) then
+        GameTooltip:AddLine("Shift-click: Wowhead link to copy", 0.5, 0.5, 0.5)
+    end
     GameTooltip:Show()
 end
 
@@ -443,6 +454,11 @@ function L:GetRow(index)
             elseif item.npcMarked then
                 ns.NpcFinder:Unmark()
             end
+            return
+        end
+        local questId = QuestIdOf(item)
+        if questId and IsShiftKeyDown() and ns.db.wowheadLinks then
+            ns.Widgets.ShareUrl(ns.Widgets.QuestUrl(questId))
             return
         end
         if item.header then

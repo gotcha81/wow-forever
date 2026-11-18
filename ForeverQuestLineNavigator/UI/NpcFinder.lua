@@ -246,9 +246,7 @@ function F.WowheadUrl(id) return id and id > 0 and WOWHEAD:format(id) or nil end
 function F:ShareUrl(id)
     local url = self.WowheadUrl(id)
     if not url then return end
-    local open = ChatFrame_OpenChat or (ChatFrameUtil and ChatFrameUtil.OpenChat)
-    local ok = open and pcall(open, url)
-    if not ok then ns.Print(url) end
+    ns.Widgets.ShareUrl(url)
 end
 
 ---------------------------------------------------------------------------------------

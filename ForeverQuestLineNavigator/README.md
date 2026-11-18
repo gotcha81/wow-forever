@@ -53,6 +53,8 @@ Copy the `ForeverQuestLineNavigator` folder into `World of Warcraft\_forever_\In
 - **Nearby quest targets**: a small window lists the quest mobs and NPCs close to you (to kill, drop a
   quest item, turn in to, or give the arrow's quest), with a click to target them. It finds them by
   nameplates (V key), target, mouseover and combat. Settings: on/off and "also inside dungeons".
+- **Shift-click** a quest to put its Wowhead (Forever) address in the chat box, selected (Ctrl+C copies it).
+  Addons cannot open a browser. On/off in Settings > Links.
 - Right-click a quest to **ignore** its questline (saved per character). Ignored ones are listed at the
   bottom of the Route tab; right-click there to bring them back.
 - Optional (Settings, off by default): when you enter a dungeon, chat lists the quests for it you could have
