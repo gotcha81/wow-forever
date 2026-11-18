@@ -391,6 +391,13 @@ local function AddPoints(out, kind, id, note)
     end
 end
 
+-- All places an NPC stands (the NPC finder).
+function P:NpcPoints(npcId)
+    local out = {}
+    AddPoints(out, "npc", npcId)
+    return out
+end
+
 local function FinishedObjectives(questId)
     local finished = {}
     if C_QuestLog and C_QuestLog.GetQuestObjectives then

@@ -136,6 +136,7 @@ ns.defaults = {
 -- Per character (ForeverQuestLineNavigatorCharDB)
 ns.charDefaults = {
     ignored = { lines = {}, quests = {} }, -- see Ignore.lua
+    -- npcMark = { id = npcId } while a marked NPC is kept pinned (UI/NpcFinder.lua)
 }
 
 local function ApplyDefaults(db, defaults)
@@ -183,6 +184,7 @@ local function Start()
     ns.Planner:BuildCatalog(ns.Safe("start", function()
         ns.ready = true
         ns.Refresh()
+        ns.NpcFinder:Restore()
         local dj = ns.DungeonJournalSource.available and "on" or "off"
         ns.Print(("ready. %d dungeon and class questlines found (DungeonJournal data: %s). Type /fqln for options.")
             :format(ns.Planner.catalogCount or 0, dj))
@@ -232,6 +234,7 @@ local function OnEvent(self, event, arg1, arg2)
         ns.Arrow:ClearOldGameWaypoint()
         ns.MinimapButton:Create()
         ns.Nearby:Create()
+        ns.NpcFinder:Create()
 
         -- Questie's public API tells us when its data is ready; a timer as backup.
         if Questie and Questie.API and type(Questie.API.RegisterOnReady) == "function" then

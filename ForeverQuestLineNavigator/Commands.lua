@@ -113,6 +113,8 @@ local function Help()
     print("  /fqln arrowtext <8-24>  - text size under the arrow (now " .. ns.db.arrowFrame.textSize .. ")")
     print("  /fqln lock|unlock arrow|window  - pin or free a position (or use the padlocks)")
     print("  /fqln d [name]  - the Dungeon tab (optionally pick a dungeon by name)")
+    print("  /fqln npc [name]  - the NPCs tab: find a friendly NPC and mark it on the map")
+    print("  /fqln unmark  - remove the NPC marker")
     print("  /fqln dungeoncheck on|off  - list missing quests when you enter a dungeon")
     print("  /fqln nearby on|off  - the Nearby quest targets window")
     print("  /fqln debug   - position / facing values (if the arrow does not turn)")
@@ -196,6 +198,13 @@ local function SlashCommand(input)
         end
         ns.List.picking = false
         ns.List:SetShown(true)
+    elseif cmd == "npc" then
+        db.list.tab = "npc"
+        ns.List.picking = false
+        ns.List:SetShown(true)
+        if arg ~= "" then ns.List.searchBox:SetText(arg) end
+    elseif cmd == "unmark" then
+        if ns.NpcFinder.stop then ns.NpcFinder:Unmark() else ns.Print("no NPC is marked.") end
     elseif cmd == "nearby" then
         local n = db.nearby
         if arg == "on" then n.shown = true elseif arg == "off" then n.shown = false else n.shown = not n.shown end

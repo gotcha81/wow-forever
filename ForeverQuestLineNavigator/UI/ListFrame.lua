@@ -1,7 +1,8 @@
--- The quest list window, two tabs:
+-- The quest list window, three tabs:
 --  Route:   Route (numbered), Not on the map, Unlocks soon, Not worth it right now,
 --           Trivial, Ignored.
 --  Dungeon: pick a dungeon, see all its quests and what you are missing.
+--  NPCs:    search friendly NPCs and mark one on the map (UI/NpcFinder.lua).
 -- Click a section header to fold it. Click a row to aim the arrow.
 -- Right-click a quest to ignore its questline (right-click in Ignored to bring it back).
 
@@ -99,7 +100,7 @@ function L:Create()
 
     -- Tabs, and the dungeon picker button (Dungeon tab only)
     local function Tab(label, key)
-        local b = W.TextButton(f, 74, 18, label, label, function()
+        local b = W.TextButton(f, 64, 18, label, label, function()
             db.list.tab = key
             L.picking = false
             L:Update()
@@ -112,18 +113,20 @@ function L:Create()
     self.tabRoute:SetPoint("TOPLEFT", 10, -32)
     self.tabDungeon = Tab("Dungeon", "dungeon")
     self.tabDungeon:SetPoint("LEFT", self.tabRoute, "RIGHT", 4, 0)
-    self.picker = W.TextButton(f, WIDTH - 196, 18, "", "Choose a dungeon", function()
+    self.tabNpc = Tab("NPCs", "npc")
+    self.tabNpc:SetPoint("LEFT", self.tabDungeon, "RIGHT", 4, 0)
+    self.picker = W.TextButton(f, WIDTH - 238, 18, "", "Choose a dungeon", function()
         L.picking = not L.picking
         L:Update()
     end)
-    self.picker:SetPoint("LEFT", self.tabDungeon, "RIGHT", 10, 0)
+    self.picker:SetPoint("LEFT", self.tabNpc, "RIGHT", 8, 0)
     self.picker.label:ClearAllPoints()
     self.picker.label:SetPoint("LEFT", 6, 0)
     self.picker.label:SetPoint("RIGHT", -6, 0)
     self.picker.label:SetJustifyH("LEFT")
     self.picker.label:SetWordWrap(false)
 
-    -- Search box: searches all quests while it has text (both tabs).
+    -- Search box: quests on the Route and Dungeon tabs, NPCs on the NPCs tab.
     local box = CreateFrame("EditBox", nil, f, "BackdropTemplate")
     box:SetPoint("TOPLEFT", 10, -54)
     box:SetPoint("RIGHT", f, "RIGHT", -12, 0)
@@ -142,7 +145,7 @@ function L:Create()
     box:SetMaxLetters(60)
     local placeholder = box:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     placeholder:SetPoint("LEFT", 7, 0)
-    placeholder:SetText("Search quests, questlines, dungeons, zones, NPCs")
+    self.placeholder = placeholder
     local clear = W.TextButton(box, 16, 16, "x", "Clear the search", function()
         box:SetText("")
         box:ClearFocus()
@@ -157,10 +160,7 @@ function L:Create()
         if pending then pending:Cancel() end
         pending = C_Timer.NewTimer(0.3, ns.Safe("search", function()
             L.searchText = text:match("^%s*(.-)%s*$")
-            if L.searchText ~= "" then
-                ns.Search:Build(function() L:Update() end)
-            end
-            L:Update()
+            L:Update() -- builds the quest or NPC index the first time (see Update)
         end))
     end))
     box:SetScript("OnEditFocusGained", function() placeholder:Hide() end)
@@ -212,6 +212,7 @@ function L:SetMinimized(minimized)
     self.mini:SetShown(minimized)
     self.tabRoute:SetShown(not minimized)
     self.tabDungeon:SetShown(not minimized)
+    self.tabNpc:SetShown(not minimized)
     self.picker:SetShown(not minimized and ns.db.list.tab == "dungeon")
     self.searchBox:SetShown(not minimized)
     -- keep the title bar where it is: grow / shrink downwards
@@ -328,6 +329,30 @@ local function RowTooltip(row)
         GameTooltip:SetText(planner:LineName(line), 1, 1, 1)
         if line.eval.reason then GameTooltip:AddLine("Trivial: " .. line.eval.reason, 0.7, 0.7, 0.7, true) end
         AddLineDetails(line, nil)
+    elseif item.npc then
+        local n = item.npc
+        GameTooltip:SetText(n.name, 0.4, 1, 0.4)
+        if n.sub then GameTooltip:AddLine("<" .. n.sub .. ">", 1, 1, 1) end
+        if n.minLevel then
+            GameTooltip:AddLine(n.minLevel == n.maxLevel and ("Level %d"):format(n.minLevel)
+                or ("Level %d-%d"):format(n.minLevel, n.maxLevel or n.minLevel), 0.8, 0.8, 0.8)
+        end
+        GameTooltip:AddLine(("%d %s on the map"):format(#n.points, #n.points == 1 and "place" or "places"), 0.8, 0.8, 0.8)
+        if n.nearest and n.nearest.inside then GameTooltip:AddLine("Inside " .. n.nearest.inside, 0.8, 0.8, 0.8) end
+        GameTooltip:AddLine(ns.NpcFinder.WowheadUrl(n.id), 0.6, 0.85, 1)
+        GameTooltip:AddLine("Click: mark on the map  ·  Shift-click: Wowhead link to copy", 0.5, 0.5, 0.5, true)
+    elseif item.npcMarked then
+        local stop = item.npcMarked
+        GameTooltip:SetText(stop.name, 0.4, 1, 0.4)
+        GameTooltip:AddLine(ns.NpcFinder.keep and "Kept until you talk to this NPC, or remove it"
+            or "Removed by Esc, by marking another NPC, or when you talk to it", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("Click: point the arrow here  ·  Right-click: remove", 0.5, 0.5, 0.5)
+    elseif item.npcKeep then
+        GameTooltip:SetText("Keep pinned", 1, 1, 1)
+        GameTooltip:AddLine("The marker stays through Esc and /reload, until you talk to the NPC or remove it.",
+            0.8, 0.8, 0.8, true)
+    elseif item.npcRemove then
+        GameTooltip:SetText("Remove the marker", 1, 1, 1)
     elseif item.message then
         return
     end
@@ -385,6 +410,8 @@ function L:GetRow(index)
                 end
             elseif item.ignoredEntry then
                 ns.Ignore:AskRestore(item.ignoredEntry)
+            elseif item.npcMarked then
+                ns.NpcFinder:Unmark()
             end
             return
         end
@@ -403,6 +430,22 @@ function L:GetRow(index)
             ns.db.list.dungeon = item.dungeonPick.name
             L.picking = false
             L:Update()
+        elseif item.npc then
+            if IsShiftKeyDown() then
+                ns.NpcFinder:ShareUrl(item.npc.id)
+            else
+                ns.NpcFinder:Mark(item.npc.id, ns.db.list.npcKeep)
+            end
+        elseif item.npcMarked then
+            ns.NpcFinder.arrowOff = false
+            ns.Arrow:SetTarget(ns.Planner.route[1])
+            ns.List:Update()
+        elseif item.npcKeep then
+            ns.db.list.npcKeep = not ns.db.list.npcKeep
+            ns.NpcFinder:SetKeep(ns.db.list.npcKeep)
+            L:Update()
+        elseif item.npcRemove then
+            ns.NpcFinder:Unmark()
         end
     end))
     self.rows[index] = row
@@ -519,6 +562,25 @@ function L:Fill(row, item)
         local recommended = ns.Planner.recommended and ns.Planner.recommended[d.name]
         row.line2:SetText((open > 0 and ("%d %s for you now"):format(open, open == 1 and "quest" or "quests")
             or "nothing for you right now") .. (recommended and "  ·  |cff40ff40recommended|r" or ""))
+    elseif item.npc then
+        self:FillNpc(row, item.npc)
+    elseif item.npcMarked then
+        local stop = item.npcMarked
+        local yards = ns.Planner:DistanceTo(stop)
+        local zone = stop.point and ns.Pos.MapName(stop.point.zone or stop.point.uiMapId) or ""
+        row.line1:SetText("|cff60ff60Marked:|r " .. stop.name .. (stop.npc.sub and ("  |cffb0b0b0<" .. stop.npc.sub .. ">|r") or ""))
+        row.line2:SetText(zone .. (yards and ("  ·  %d yd"):format(yards) or "")
+            .. (ns.NpcFinder.arrowOff and "  ·  |cff808080click to point the arrow here|r" or "  ·  the arrow points here"))
+        row.line3:SetText(ns.NpcFinder.keep and "Kept until you talk to it  ·  right-click to remove"
+            or "Esc or right-click removes it")
+        row.badge:Show()
+        row.badge:SetVertexColor(0.35, 1, 0.35)
+    elseif item.npcKeep then
+        row:SetHeight(HEADER_HEIGHT)
+        row.header:SetText((ns.db.list.npcKeep and "|cff40ff40[x]|r" or "|cff808080[  ]|r") .. " Keep pinned until I talk to the NPC")
+    elseif item.npcRemove then
+        row:SetHeight(HEADER_HEIGHT)
+        row.header:SetText("|cffff6060x|r Remove the marker")
     elseif item.ignoredEntry then
         local entry = item.ignoredEntry
         row.line1:SetText("|cff9d9d9d" .. tostring(entry.name) .. "|r")
@@ -548,8 +610,15 @@ function L:Update()
     local planner = ns.Planner
     local collapsed = ns.db.collapsed
     local items = {}
-    local tab = ns.db.list.tab == "dungeon" and "dungeon" or "route"
+    local tab = ns.db.list.tab
+    if tab ~= "dungeon" and tab ~= "npc" then tab = "route" end
     self:StyleTabs(tab)
+
+    if tab == "npc" then
+        self:NpcItems(items)
+        self:Layout(items)
+        return
+    end
 
     local function Section(key, title, list, make)
         if #list == 0 then return end
@@ -559,6 +628,7 @@ function L:Update()
     end
 
     if self.searchText and self.searchText ~= "" then
+        if not ns.Search.ready then ns.Search:Build(function() L:Update() end) end
         self:SearchItems(items)
         self:Layout(items)
         return
@@ -604,7 +674,8 @@ function L:UpdateDistances()
         return
     end
     for _, row in ipairs(self.rows) do
-        if row:IsShown() and row.item and (row.item.stop or row.item.entry) then self:Fill(row, row.item) end
+        local item = row:IsShown() and row.item
+        if item and (item.stop or item.entry or item.npc or item.npcMarked) then self:Fill(row, item) end
     end
 end
 
@@ -613,12 +684,14 @@ end
 ---------------------------------------------------------------------------------------
 
 function L:StyleTabs(tab)
-    for key, b in pairs({ route = self.tabRoute, dungeon = self.tabDungeon }) do
+    for key, b in pairs({ route = self.tabRoute, dungeon = self.tabDungeon, npc = self.tabNpc }) do
         local on = key == tab
         b:SetBackdropBorderColor(on and 0.3 or 0.25, on and 0.55 or 0.3, on and 0.9 or 0.4, 1)
         b.label:SetTextColor(on and 1 or 0.6, on and 0.82 or 0.6, on and 0 or 0.6)
     end
     self.picker:SetShown(tab == "dungeon" and not ns.db.list.minimized)
+    self.placeholder:SetText(tab == "npc" and "Search friendly NPCs: name, title (flight master, innkeeper), zone"
+        or "Search quests, questlines, dungeons, zones, NPCs")
     local name = ns.db.list.dungeon
     self.picker.label:SetText((self.picking and "|cff4da6ffChoose a dungeon:|r" or (name or "Choose a dungeon"))
         .. "  |cff808080v|r")
@@ -738,4 +811,57 @@ function L:DungeonItems(items, Section)
     end
     Section("dungeonDone", "Done", r.done, function(e) return { entry = e } end)
     Section("dungeonIgnored", "Ignored", r.ignored, function(e) return { entry = e } end)
+end
+
+---------------------------------------------------------------------------------------
+-- NPCs tab
+---------------------------------------------------------------------------------------
+
+function L:FillNpc(row, n)
+    local level = ""
+    if n.minLevel then
+        level = ("|cff808080[%s]|r "):format(n.minLevel == n.maxLevel and n.minLevel
+            or (n.minLevel .. "-" .. (n.maxLevel or n.minLevel)))
+    end
+    row.line1:SetText(level .. n.name .. (n.sub and ("  |cffb0b0b0<" .. n.sub .. ">|r") or ""))
+    local nearest, yards = ns.NpcFinder.Nearest(n.points)
+    local where = nearest and ns.Pos.MapName(nearest.zone or nearest.uiMapId) or "position not known"
+    if nearest and nearest.inside then where = nearest.inside .. ", " .. where end
+    local places = #n.points > 1 and ("  ·  %d places"):format(#n.points) or ""
+    row.line2:SetText(where .. (yards and ("  ·  %d yd"):format(yards) or "") .. places)
+    row.line3:SetText("|cff808080Click: mark on the map  ·  Shift-click: Wowhead link|r")
+    local marked = ns.NpcFinder.stop
+    if marked and marked.npcId == n.id then
+        row.badge:Show()
+        row.badge:SetVertexColor(0.35, 1, 0.35)
+    end
+end
+
+function L:NpcItems(items)
+    local F = ns.NpcFinder
+    if F.stop then
+        items[#items + 1] = { npcMarked = F.stop }
+        items[#items + 1] = { npcRemove = true }
+    end
+    items[#items + 1] = { npcKeep = true }
+    local text = self.searchText
+    if not text or text == "" then
+        items[#items + 1] = { message = "|cff808080Type a name, a title (flight master, innkeeper,|r" }
+        items[#items + 1] = { message = "|cff808080weapon trainer ...) or a zone in the box above.|r" }
+        return
+    end
+    if not F.ready then
+        items[#items + 1] = { message = "|cff808080Building the NPC index...|r" }
+        F:Build(function() L:Update() end)
+        return
+    end
+    local r = F:Find(text)
+    items[#items + 1] = { header = ("NPCs: \"%s\""):format(text), section = "search", count = r.total }
+    for _, n in ipairs(r.list) do items[#items + 1] = { npc = n } end
+    if r.total == 0 then
+        items[#items + 1] = { message = "|cff808080No friendly NPC matches.|r" }
+    elseif r.total > #r.list then
+        items[#items + 1] = { message = ("|cff808080%d match, the nearest %d are shown. Type more to narrow it.|r")
+            :format(r.total, #r.list) }
+    end
 end

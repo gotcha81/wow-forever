@@ -122,6 +122,8 @@ function A:SetTarget(defaultStop)
             self.pinned = nil
         end
     end
+    local npc = ns.NpcFinder.stop
+    if npc and not ns.NpcFinder.arrowOff then target = npc end
     self.target = target
     self:UpdateVisibility()
 end
@@ -129,6 +131,7 @@ end
 -- Point at a specific stop (clicked in the list or on a pin).
 function A:Pin(stop)
     self.pinned = { questId = stop.questId, state = stop.state, stop = stop.external and stop or nil }
+    ns.NpcFinder.arrowOff = true -- a quest clicked after marking an NPC: the arrow goes to the quest
     self.target = stop
     self:UpdateVisibility()
     ns.Pins:Update()
@@ -157,9 +160,13 @@ function A:Tick()
     if not stop or not stop.point then f:Hide(); return end
     local point = stop.point
 
-    local number = ""
-    for i, s in ipairs(ns.Planner.route) do if s == stop then number = i .. ". "; break end end
-    f.title:SetText(("%s%s%s: %s"):format(number, ns.Widgets.StateTag(stop.state), ACTION[stop.state] or "", stop.name))
+    if stop.npc then
+        f.title:SetText(("|cff60ff60[NPC]|r %s%s"):format(stop.name, stop.npc.sub and (" <" .. stop.npc.sub .. ">") or ""))
+    else
+        local number = ""
+        for i, s in ipairs(ns.Planner.route) do if s == stop then number = i .. ". "; break end end
+        f.title:SetText(("%s%s%s: %s"):format(number, ns.Widgets.StateTag(stop.state), ACTION[stop.state] or "", stop.name))
+    end
     local zone = ns.Pos.MapName(point.zone or point.uiMapId) or ""
     f.where:SetText(point.inside and (point.inside .. " entrance, " .. zone) or zone)
 

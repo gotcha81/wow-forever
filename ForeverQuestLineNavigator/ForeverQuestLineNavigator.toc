@@ -2,7 +2,7 @@
 ## Title: Forever QuestLine Navigator
 ## Notes: Dungeon quest chains for your level, in pickup order, with numbered map pins and a blue arrow. /fqln
 ## Author: gotcha81
-## Version: 0.4.4
+## Version: 0.5.0
 ## Dependencies: Questie, QuestieDB
 ## OptionalDeps: ForeverDungeonJournal, OpenMap
 ## SavedVariables: ForeverQuestLineNavigatorDB
@@ -35,5 +35,6 @@ UI\ListFrame.lua
 UI\Pins.lua
 UI\Arrow.lua
 UI\Nearby.lua
+UI\NpcFinder.lua
 UI\MinimapButton.lua
 Commands.lua

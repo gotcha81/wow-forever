@@ -23,6 +23,12 @@ Copy the `ForeverQuestLineNavigator` folder into `World of Warcraft\_forever_\In
   gives at least 35% of a level.
 - **Search** (the box under the tabs): searches every quest you can do by quest name, questline, dungeon,
   zone and the NPC that starts it. Grey quests are folded under a `+` row. Clears when the window closes.
+- **NPCs tab**: search friendly NPCs by name, title (flight master, innkeeper, weapon trainer) or zone.
+  Click one to mark every place it stands on the world map and minimap (green pins), with the arrow
+  pointing at the nearest. Esc, the x, right-click or marking another NPC removes the marker, and it
+  goes by itself when you talk to that NPC. "Keep pinned" keeps it through Esc and /reload.
+  Shift-click puts the NPC's Wowhead (Forever) address in the chat box to copy. Data comes from
+  QuestieDB; Wowhead is not read by the addon (`/fqln npc [name]`, `/fqln unmark`).
 - **Nearby quest targets**: a small window lists the quest mobs and NPCs close to you (to kill, drop a
   quest item, turn in to, or give the arrow's quest), with a click to target them. It finds them by
   nameplates (V key), target, mouseover and combat. Settings: on/off and "also inside dungeons".
