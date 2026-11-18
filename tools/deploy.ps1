@@ -52,3 +52,5 @@ if ($LASTEXITCODE -ge 8) { throw "robocopy failed with exit code $LASTEXITCODE."
 
 # Print only the addon name, never the full local path.
 Write-Host "Deployed '$Addon' to the game AddOns folder. Type /reload in game to load changes."
+# robocopy uses exit codes 1-7 for success; report plain success to the caller.
+exit 0

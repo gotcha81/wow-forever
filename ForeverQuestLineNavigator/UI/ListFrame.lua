@@ -1,0 +1,362 @@
+-- The quest list window.
+-- Sections: Route (numbered), Not on the map, Unlocks soon, Not worth it right now,
+-- Trivial. Click a section header to fold it. Click a route row to aim the arrow.
+
+local ADDON_NAME, ns = ...
+
+local L = { rows = {}, checkboxes = {} }
+ns.List = L
+
+local MEDIA = "Interface\\AddOns\\" .. ADDON_NAME .. "\\Media\\"
+local WIDTH, HEIGHT = 420, 480
+local ROW_HEIGHT, HEADER_HEIGHT = 48, 22
+
+local ACTION = {
+    pickup   = "|cffffd100Pick up|r",
+    turnin   = "|cff40ff40Turn in|r",
+    progress = "|cffb0b0b0Objectives|r",
+}
+
+local function WhereText(stop)
+    if stop.world then return "World quest" end
+    if stop.dungeon then return "|cff9fd0ff" .. stop.dungeon .. "|r" end
+    if stop.primary and stop.primary.line.kind == "class" then return "|cffff9f40Class quest|r" end
+    return "Questline"
+end
+
+local function DistanceText(stop)
+    local yards = ns.Planner:DistanceTo(stop)
+    if yards then return ("%d yd"):format(yards) end
+    if stop.point then
+        local info = C_Map.GetMapInfo(stop.point.uiMapId)
+        return info and info.name or ""
+    end
+    return ""
+end
+
+local function LevelTag(level)
+    if not level or level <= 0 then return "" end
+    local color = GetQuestDifficultyColor and GetQuestDifficultyColor(level)
+    if color then
+        return ("|cff%02x%02x%02x[%d]|r "):format(color.r * 255, color.g * 255, color.b * 255, level)
+    end
+    return ("[%d] "):format(level)
+end
+
+local function Checkbox(parent, label, key, x, y, tooltip)
+    local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+    cb:SetSize(22, 22)
+    cb:SetPoint("TOPLEFT", x, y)
+    local text = cb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    text:SetPoint("LEFT", cb, "RIGHT", 1, 0)
+    text:SetText(label)
+    cb.key = key
+    cb:SetChecked(ns.db[key])
+    L.checkboxes[#L.checkboxes + 1] = cb
+    cb:SetScript("OnClick", function(self)
+        ns.db[key] = self:GetChecked() and true or false
+        ns.Arrow:UpdateVisibility()
+        ns.RequestRefresh(0)
+    end)
+    cb:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText(label, 1, 1, 1)
+        GameTooltip:AddLine(tooltip, nil, nil, nil, true)
+        GameTooltip:Show()
+    end)
+    cb:SetScript("OnLeave", GameTooltip_Hide)
+    return cb
+end
+
+function L:Create()
+    local db = ns.db
+    local f = CreateFrame("Frame", "ForeverQuestLineNavigatorList", UIParent, "BackdropTemplate")
+    self.frame = f
+    f:SetSize(WIDTH, HEIGHT)
+    local p = db.list.point
+    f:SetPoint(p[1], UIParent, p[2], p[3], p[4])
+    f:SetFrameStrata("MEDIUM")
+    f:SetClampedToScreen(true)
+    f:SetMovable(true)
+    f:EnableMouse(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local a, _, b, x, y = self:GetPoint()
+        db.list.point = { a, b, x, y }
+    end)
+    f:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+    })
+    f:SetBackdropColor(0.04, 0.07, 0.13, 0.92)
+    f:SetBackdropBorderColor(0.3, 0.55, 0.9, 1)
+
+    local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOPLEFT", 12, -10)
+    title:SetText("|cff4da6ffQuestLine Navigator|r")
+
+    local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", 0, 0)
+    close:SetScript("OnClick", function() L:SetShown(false) end)
+
+    local mapButton = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    mapButton:SetSize(54, 20)
+    mapButton:SetPoint("TOPRIGHT", -30, -8)
+    mapButton:SetText("Map")
+    mapButton:SetScript("OnClick", function() ToggleWorldMap() end)
+
+    Checkbox(f, "Dungeon focus", "dungeonFocus", 10, -32,
+        "On: only dungeon questlines (and class quests).\nOff: also open-world quests in the zones your route already passes through.")
+    Checkbox(f, "Class quests", "classQuests", 140, -32, "Include questlines for your class.")
+    Checkbox(f, "Travel time", "travelTime", 270, -32,
+        "Count boats and zeppelins as 'just missed it' (a full wait) when the route changes continent. Off: a rough fixed estimate.")
+    Checkbox(f, "Arrow", "arrow", 10, -54, "Show the blue arrow to stop #1. It is always hidden inside instances.")
+    Checkbox(f, "Map pins", "pins", 140, -54, "Numbered pins on the world map (OpenMap too) and the minimap.")
+
+    self.status = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    self.status:SetPoint("TOPLEFT", 272, -59)
+    self.status:SetJustifyH("LEFT")
+
+    local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 8, -82)
+    scroll:SetPoint("BOTTOMRIGHT", -28, 10)
+    local content = CreateFrame("Frame", nil, scroll)
+    content:SetSize(WIDTH - 40, 10)
+    scroll:SetScrollChild(content)
+    self.content = content
+
+    f:SetShown(db.list.shown)
+    C_Timer.NewTicker(2, function()
+        if f:IsShown() and ns.ready then L:UpdateDistances() end
+    end)
+end
+
+function L:SetShown(shown)
+    ns.db.list.shown = shown
+    if self.frame then self.frame:SetShown(shown) end
+    if shown then self:Update() end
+end
+
+function L:Toggle() self:SetShown(not self.frame:IsShown()) end
+
+---------------------------------------------------------------------------------------
+-- Tooltips
+---------------------------------------------------------------------------------------
+
+local function AddLineDetails(line, index)
+    local planner = ns.Planner
+    local eval = line.eval
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine("Questline: " .. planner:LineName(line), 0.6, 0.85, 1)
+    if index then GameTooltip:AddLine(planner:StepText(line, index), 0.8, 0.8, 0.8) end
+    if eval then
+        GameTooltip:AddLine(("%d of %d quests done  ·  %s XP left (%d%% of this level)"):format(
+            eval.done, #line.steps, ns.XP.Format(eval.xpRemaining), eval.xpShare * 100), 0.8, 0.8, 0.8)
+    end
+    if #line.parts > 1 then
+        for i, part in ipairs(line.parts) do
+            local doneAll = true
+            for s = part.first, part.last do
+                if not planner:StepDone(line, line.steps[s]) then doneAll = false; break end
+            end
+            local mark = doneAll and "|cff40ff40done|r" or ""
+            GameTooltip:AddLine(("  Part %d: %s  %s"):format(i, part.dungeon or "open world", mark), 0.7, 0.7, 0.7)
+        end
+    end
+    if index then
+        local blocker = planner:BlockerText(line, index)
+        if blocker then GameTooltip:AddLine(blocker, 1, 0.6, 0.2, true) end
+    end
+end
+
+local function RowTooltip(row)
+    local item = row.item
+    if not item or item.header then return end
+    GameTooltip:SetOwner(row, "ANCHOR_LEFT")
+    local planner = ns.Planner
+    if item.stop then
+        local stop = item.stop
+        GameTooltip:SetText(stop.name, 1, 1, 1)
+        GameTooltip:AddLine(ACTION[stop.state] .. "  ·  " .. WhereText(stop))
+        GameTooltip:AddLine(planner:XPText(stop), 1, 0.82, 0)
+        if stop.reason then GameTooltip:AddLine("Not on the route: " .. stop.reason, 1, 0.5, 0.3) end
+        if stop.leadIn then GameTooltip:AddLine("Grey quest, but it leads into a good questline", 0.8, 0.8, 0.8) end
+        if stop.startItem then GameTooltip:AddLine("Starts from an item: " .. stop.startItem, 1, 0.82, 0) end
+        if stop.point and stop.point.inside then
+            GameTooltip:AddLine("Inside " .. stop.point.inside .. " (the arrow points to the entrance)", 0.8, 0.8, 0.8)
+        elseif stop.point and stop.point.note then
+            GameTooltip:AddLine("Location: " .. stop.point.note, 0.8, 0.8, 0.8)
+        end
+        if stop.primary then AddLineDetails(stop.primary.line, stop.primary.index) end
+        if item.number then GameTooltip:AddLine("Click: point the arrow here", 0.5, 0.5, 0.5) end
+    elseif item.upcoming then
+        local u = item.upcoming
+        GameTooltip:SetText(u.name, 1, 1, 1)
+        GameTooltip:AddLine(("Unlocks at level %d"):format(u.required), 1, 0.82, 0)
+        AddLineDetails(u.line, u.index)
+    elseif item.line then
+        local line = item.line
+        GameTooltip:SetText(planner:LineName(line), 1, 1, 1)
+        if line.eval.reason then GameTooltip:AddLine("Trivial: " .. line.eval.reason, 0.7, 0.7, 0.7, true) end
+        AddLineDetails(line, nil)
+    elseif item.message then
+        return
+    end
+    GameTooltip:Show()
+end
+
+---------------------------------------------------------------------------------------
+-- Rows
+---------------------------------------------------------------------------------------
+
+function L:GetRow(index)
+    local row = self.rows[index]
+    if row then return row end
+    row = CreateFrame("Button", nil, self.content)
+    row:SetSize(WIDTH - 40, ROW_HEIGHT)
+    row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+
+    row.badge = row:CreateTexture(nil, "ARTWORK")
+    row.badge:SetSize(22, 22)
+    row.badge:SetPoint("TOPLEFT", 2, -4)
+    row.badge:SetTexture(MEDIA .. "Pin")
+    row.number = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.number:SetPoint("CENTER", row.badge, "CENTER", 0, 0)
+
+    local function Line(font, y)
+        local fs = row:CreateFontString(nil, "OVERLAY", font)
+        fs:SetPoint("TOPLEFT", 30, y)
+        fs:SetPoint("RIGHT", -4, 0)
+        fs:SetJustifyH("LEFT")
+        fs:SetWordWrap(false)
+        return fs
+    end
+    row.line1 = Line("GameFontHighlight", -3)
+    row.line2 = Line("GameFontDisableSmall", -18)
+    row.line3 = Line("GameFontNormalSmall", -31)
+
+    row.header = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    row.header:SetPoint("BOTTOMLEFT", 4, 4)
+
+    row:SetScript("OnEnter", RowTooltip)
+    row:SetScript("OnLeave", GameTooltip_Hide)
+    row:SetScript("OnClick", function(self)
+        local item = self.item
+        if not item then return end
+        if item.header then
+            ns.db.collapsed[item.section] = not ns.db.collapsed[item.section]
+            L:Update()
+        elseif item.number then
+            ns.Arrow:Pin(item.stop)
+        end
+    end)
+    self.rows[index] = row
+    return row
+end
+
+function L:Fill(row, item)
+    row.item = item
+    row.header:SetText("")
+    row.line1:SetText("")
+    row.line2:SetText("")
+    row.line3:SetText("")
+    row.badge:Hide()
+    row.number:SetText("")
+    row:SetHeight(item.header and HEADER_HEIGHT or ROW_HEIGHT)
+
+    if item.header then
+        local folded = ns.db.collapsed[item.section]
+        row.header:SetText(("%s %s |cff808080(%d)|r"):format(folded and "+" or "-", item.header, item.count or 0))
+        return
+    end
+    if item.message then
+        row:SetHeight(HEADER_HEIGHT)
+        row.line1:SetText(item.message)
+        return
+    end
+    local planner = ns.Planner
+    if item.stop then
+        local stop = item.stop
+        local stepText = ""
+        if stop.primary and #stop.primary.line.steps > 1 then
+            stepText = (" |cff808080(%d/%d)|r"):format(stop.primary.index, #stop.primary.line.steps)
+        end
+        row.line1:SetText(LevelTag(stop.level) .. stop.name .. stepText)
+        local parts = ""
+        if stop.primary and #stop.primary.line.parts > 1 then
+            local line = stop.primary.line
+            parts = ("  ·  part %d/%d"):format(line.partOf[stop.questId] or 1, #line.parts)
+        end
+        row.line2:SetText(ACTION[stop.state] .. "  ·  " .. WhereText(stop) .. parts .. "  ·  " .. DistanceText(stop))
+        row.line3:SetText(planner:XPText(stop))
+        if item.number then
+            row.badge:Show()
+            row.number:SetText(item.number)
+            local isTarget = ns.Arrow.target == stop
+            row.badge:SetVertexColor(1, isTarget and 0.85 or 1, isTarget and 0.2 or 1)
+        end
+    elseif item.upcoming then
+        local u = item.upcoming
+        row.line1:SetText(("|cff808080[%d]|r %s"):format(u.required, u.name))
+        row.line2:SetText(("Unlocks at level %d  ·  %s"):format(u.required, planner:StepText(u.line, u.index)))
+        row.line3:SetText(("Questline: %s  ·  %s XP left"):format(planner:LineName(u.line),
+            ns.XP.Format(u.line.eval and u.line.eval.xpRemaining or 0)))
+    elseif item.line then
+        local line = item.line
+        local eval = line.eval
+        row.line1:SetText("|cff9d9d9d" .. planner:LineName(line) .. "|r")
+        row.line2:SetText(("%d of %d done  ·  %s"):format(eval.done, #line.steps, eval.reason or "grey"))
+        row.line3:SetText(("XP left %s (%d%% of this level)"):format(ns.XP.Format(eval.xpRemaining), eval.xpShare * 100))
+    end
+end
+
+function L:Update()
+    if not self.frame or not self.frame:IsShown() or not ns.ready then return end
+    for _, cb in ipairs(self.checkboxes) do cb:SetChecked(ns.db[cb.key]) end
+    local planner = ns.Planner
+    local collapsed = ns.db.collapsed
+    local items = {}
+
+    local function Section(key, title, list, make)
+        if #list == 0 then return end
+        items[#items + 1] = { header = title, section = key, count = #list }
+        if collapsed[key] then return end
+        for i, entry in ipairs(list) do items[#items + 1] = make(entry, i) end
+    end
+
+    Section("route", "Route", planner.route, function(stop, i) return { stop = stop, number = i } end)
+    Section("unlocated", "Not on the map", planner.unlocated, function(stop) return { stop = stop } end)
+    Section("upcoming", "Unlocks soon", planner.upcoming, function(u) return { upcoming = u } end)
+    Section("notWorth", "Not worth it right now", planner.notWorth, function(stop) return { stop = stop } end)
+    Section("trivial", "Trivial (grey)", planner.trivial, function(line) return { line = line } end)
+
+    if #items == 0 then
+        items[1] = { message = "No dungeon quests found for your level right now." }
+        items[2] = { message = "|cff808080Try /fqln ahead 5 to look further ahead.|r" }
+    end
+
+    local y = 0
+    for i, item in ipairs(items) do
+        local row = self:GetRow(i)
+        self:Fill(row, item)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 0, -y)
+        row:Show()
+        y = y + row:GetHeight()
+    end
+    for i = #items + 1, #self.rows do self.rows[i]:Hide() end
+    self.content:SetHeight(math.max(10, y))
+
+    local speed = planner:Riding()
+    self.status:SetText(("Riding: %s"):format(speed > 0 and (speed .. "%") or "none"))
+end
+
+function L:UpdateDistances()
+    for _, row in ipairs(self.rows) do
+        if row:IsShown() and row.item and row.item.stop then self:Fill(row, row.item) end
+    end
+end

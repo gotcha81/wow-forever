@@ -1,0 +1,32 @@
+## Interface: 16001
+## Title: Forever QuestLine Navigator
+## Notes: Dungeon quest chains for your level, in pickup order, with numbered map pins and a blue arrow. /fqln
+## Author: gotcha81
+## Version: 0.2.0
+## Dependencies: Questie, QuestieDB
+## OptionalDeps: ForeverDungeonJournal, OpenMap
+## SavedVariables: ForeverQuestLineNavigatorDB
+## X-License: MIT
+## X-Website: https://github.com/gotcha81/wow-forever
+
+# Libraries (each keeps its own licence; see Libs/README.md)
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+Libs\HereBeDragons\HereBeDragons-2.0.lua
+Libs\HereBeDragons\HereBeDragons-Pins-2.0.lua
+
+# Core
+Core.lua
+Data\Overrides.lua
+Sources\QuestieSource.lua
+Sources\DungeonJournalSource.lua
+Sources\XP.lua
+Sources\Position.lua
+Planner.lua
+
+# Interface
+UI\ListFrame.lua
+UI\Pins.lua
+UI\Arrow.lua
+UI\MinimapButton.lua
+Commands.lua
