@@ -1,6 +1,6 @@
 -- Forever QuestLine Navigator: core (namespace, saved settings, events, start-up).
 -- Everything lives in the private addon namespace `ns`; the only globals are the
--- SavedVariables table and the slash command, both with unique names.
+-- SavedVariables table, the slash command and a few uniquely named frames.
 
 local ADDON_NAME, ns = ...
 ns.ADDON_NAME = ADDON_NAME
@@ -12,11 +12,66 @@ function ns.Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage(PREFIX .. tostring(msg))
 end
 
--- Defaults for the account-wide settings table.
+---------------------------------------------------------------------------------------
+-- Error catcher: our own code runs through ns.Safe, so an error is logged once
+-- (with a count) instead of popping up every frame. /fqln errors shows them.
+---------------------------------------------------------------------------------------
+
+ns.errors = {}          -- { { message = , stack = , count = , where = }, ... }
+local errorIndex = {}   -- message -> entry
+local lastErrorNotice = -100
+
+local function Handler(err)
+    local stack = debugstack and debugstack(2, 12, 0) or ""
+    return { message = tostring(err), stack = stack }
+end
+
+local function Record(where, info)
+    local entry = errorIndex[info.message]
+    if entry then
+        entry.count = entry.count + 1
+        return
+    end
+    entry = { message = info.message, stack = info.stack, count = 1, where = where }
+    errorIndex[info.message] = entry
+    ns.errors[#ns.errors + 1] = entry
+    local now = GetTime and GetTime() or 0
+    if now - lastErrorNotice > 10 then
+        lastErrorNotice = now
+        ns.Print(("|cffff8040hit an error (%d so far). Type /fqln errors to copy the details.|r"):format(#ns.errors))
+    end
+end
+
+-- Wraps fn so errors are caught and recorded. `where` names the place for the log.
+function ns.Safe(where, fn)
+    return function(...)
+        local args, n = { ... }, select("#", ...)
+        local ok, info = xpcall(function() return fn(unpack(args, 1, n)) end, Handler)
+        if not ok then Record(where, type(info) == "table" and info or { message = tostring(info), stack = "" }) end
+    end
+end
+
+function ns.ErrorReport()
+    if #ns.errors == 0 then return "No errors recorded since the last /reload." end
+    local version = C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "?"
+    local out = { ("QuestLine Navigator %s: %d different errors"):format(version, #ns.errors) }
+    for i, e in ipairs(ns.errors) do
+        out[#out + 1] = ""
+        out[#out + 1] = ("#%d  (%dx, in %s)"):format(i, e.count, e.where)
+        out[#out + 1] = e.message
+        out[#out + 1] = e.stack
+    end
+    return table.concat(out, "\n")
+end
+
+---------------------------------------------------------------------------------------
+-- Settings
+---------------------------------------------------------------------------------------
+
 ns.defaults = {
     dungeonFocus = true,   -- only dungeon quest chains (plus class quests if enabled)
     classQuests  = true,   -- include class quests for your class
-    travelTime   = false,  -- route by estimated travel time instead of plain distance
+    travelTime   = false,  -- count boat / zeppelin "just missed it" waits
     arrow        = true,   -- show the blue arrow (always hidden inside instances)
     minimap      = { shown = true, angle = 200 },
     pins         = true,   -- numbered pins on the world map / OpenMap and minimap
@@ -40,14 +95,20 @@ local function ApplyDefaults(db, defaults)
     end
 end
 
+---------------------------------------------------------------------------------------
+-- Refresh
+---------------------------------------------------------------------------------------
+
 -- Coalesce many events into one refresh.
 local refreshQueued = false
+local DoRefresh
+
 function ns.RequestRefresh(delay)
     if refreshQueued or not ns.ready then return end
     refreshQueued = true
-    C_Timer.After(delay or 0.4, function()
+    C_Timer.After(delay or 0.6, function()
         refreshQueued = false
-        ns.Refresh()
+        DoRefresh()
     end)
 end
 
@@ -58,23 +119,36 @@ function ns.Refresh()
     ns.List:Update()
     ns.Pins:Update()
 end
+DoRefresh = ns.Safe("refresh", ns.Refresh)
 
+local starting = false
 local function Start()
-    if ns.ready then return end
-    ns.Planner:BuildCatalog(function()
+    if ns.ready or starting then return end
+    starting = true
+    ns.Planner:BuildCatalog(ns.Safe("start", function()
         ns.ready = true
         ns.Refresh()
         local dj = ns.DungeonJournalSource.available and "on" or "off"
         ns.Print(("ready. %d dungeon and class questlines found (DungeonJournal data: %s). Type /fqln for options.")
             :format(ns.Planner.catalogCount or 0, dj))
-    end)
+    end))
 end
+Start = ns.Safe("start", Start)
+
+---------------------------------------------------------------------------------------
+-- Events
+---------------------------------------------------------------------------------------
 
 local events = CreateFrame("Frame")
 events:RegisterEvent("ADDON_LOADED")
 events:RegisterEvent("PLAYER_LOGIN")
 
-events:SetScript("OnEvent", function(self, event, arg1, arg2)
+-- Events that may not exist on every client are registered carefully.
+local function TryRegister(frame, event)
+    pcall(frame.RegisterEvent, frame, event)
+end
+
+local function OnEvent(self, event, arg1, arg2)
     if event == "ADDON_LOADED" then
         if arg1 ~= ADDON_NAME then return end
         ForeverQuestLineNavigatorDB = ForeverQuestLineNavigatorDB or {}
@@ -94,19 +168,18 @@ events:SetScript("OnEvent", function(self, event, arg1, arg2)
         ns.Arrow:ClearOldGameWaypoint()
         ns.MinimapButton:Create()
 
-        -- Questie's public API tells us when its data is ready.
+        -- Questie's public API tells us when its data is ready; a timer as backup.
         if Questie and Questie.API and type(Questie.API.RegisterOnReady) == "function" then
-            Questie.API.RegisterOnReady(Start)
-        else
-            C_Timer.After(5, Start)
+            pcall(Questie.API.RegisterOnReady, Start)
         end
+        C_Timer.After(20, Start)
 
         for _, e in ipairs({
             "QUEST_ACCEPTED", "QUEST_TURNED_IN", "QUEST_REMOVED", "QUEST_LOG_UPDATE",
             "PLAYER_LEVEL_UP", "ZONE_CHANGED_NEW_AREA", "PLAYER_ENTERING_WORLD",
             "QUEST_DATA_LOAD_RESULT",
         }) do
-            self:RegisterEvent(e)
+            TryRegister(self, e)
         end
 
     elseif event == "PLAYER_ENTERING_WORLD" then
@@ -117,7 +190,11 @@ events:SetScript("OnEvent", function(self, event, arg1, arg2)
         ns.RequestRefresh(0.5)
     elseif event == "QUEST_DATA_LOAD_RESULT" then
         ns.XP:OnQuestDataLoaded(arg1, arg2)
+    elseif event == "QUEST_LOG_UPDATE" then
+        ns.RequestRefresh(1.5) -- fires very often; wait a little longer
     else
         ns.RequestRefresh()
     end
-end)
+end
+
+events:SetScript("OnEvent", ns.Safe("events", OnEvent))

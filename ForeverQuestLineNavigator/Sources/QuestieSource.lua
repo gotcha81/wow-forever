@@ -113,8 +113,8 @@ function S:Points(kind, id)
         local dungeon = dungeons[areaId]
         if dungeon then
             for _, e in ipairs(dungeon.entrances) do
-                local uiMapId = self:UiMapForArea(e[1])
-                if uiMapId and e[2] and e[2] >= 0 then
+                local uiMapId = type(e) == "table" and self:UiMapForArea(e[1])
+                if uiMapId and type(e[2]) == "number" and type(e[3]) == "number" and e[2] >= 0 then
                     points[#points + 1] = { uiMapId, e[2] / 100, e[3] / 100, e[1], inside = dungeon.name }
                 end
             end
@@ -122,7 +122,7 @@ function S:Points(kind, id)
             local uiMapId = self:UiMapForArea(areaId)
             if uiMapId then
                 for _, c in ipairs(coords) do
-                    if type(c) == "table" and c[1] and c[1] >= 0 then
+                    if type(c) == "table" and type(c[1]) == "number" and type(c[2]) == "number" and c[1] >= 0 then
                         points[#points + 1] = { uiMapId, c[1] / 100, c[2] / 100, areaId }
                     end
                 end

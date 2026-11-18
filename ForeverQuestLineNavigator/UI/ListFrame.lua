@@ -113,9 +113,9 @@ function L:Create()
     self:SetTextSize(db.list.textSize)
     self:SetMinimized(db.list.minimized)
     f:SetShown(db.list.shown)
-    C_Timer.NewTicker(2, function()
+    C_Timer.NewTicker(2, ns.Safe("list distances", function()
         if f:IsShown() and ns.ready then L:UpdateDistances() end
-    end)
+    end))
 end
 
 function L:SetShown(shown)
@@ -256,7 +256,7 @@ function L:GetRow(index)
     row.header:SetPoint("BOTTOMLEFT", 4, 4)
     self:ApplyFont(row)
 
-    row:SetScript("OnEnter", RowTooltip)
+    row:SetScript("OnEnter", ns.Safe("list tooltip", RowTooltip))
     row:SetScript("OnLeave", GameTooltip_Hide)
     row:SetScript("OnClick", function(self)
         local item = self.item

@@ -89,21 +89,21 @@ end
 
 function P:QuestLevel(id)
     local level = Q:Quest(id, "questLevel")
-    if not level then
+    if type(level) ~= "number" then
         local dj = ns.DungeonJournalSource.quests[id]
         level = dj and dj.level
     end
     if level == -1 then level = UnitLevel("player") end
-    return level
+    return type(level) == "number" and level or nil
 end
 
 function P:RequiredLevel(id)
     local level = Q:Quest(id, "requiredLevel")
-    if not level then
+    if type(level) ~= "number" then
         local dj = ns.DungeonJournalSource.quests[id]
         level = dj and dj.requires
     end
-    return level or 1
+    return type(level) == "number" and level or 1
 end
 
 local function PrereqsDone(id)
@@ -249,11 +249,11 @@ function P:BuildCatalog(onDone)
 
     local function RaceOk(id)
         local races = Q:Quest(id, "requiredRaces")
-        return not races or races == 0 or band(races, raceMask) ~= 0
+        return type(races) ~= "number" or races == 0 or band(races, raceMask) ~= 0
     end
     local function ClassOk(id)
         local classes = Q:Quest(id, "requiredClasses")
-        return not classes or classes == 0 or band(classes, classMask) ~= 0
+        return type(classes) ~= "number" or classes == 0 or band(classes, classMask) ~= 0
     end
     self.RaceOk = RaceOk
 
@@ -268,7 +268,9 @@ function P:BuildCatalog(onDone)
             local id = ids[index]
             if not O.hiddenQuests[id] and RaceOk(id) and ClassOk(id) then
                 local classes = Q:Quest(id, "requiredClasses")
+                if type(classes) ~= "number" then classes = nil end
                 local zone = Q:Quest(id, "zoneOrSort")
+                if type(zone) ~= "number" then zone = nil end
                 local dungeon = zone and zone > 0 and dungeons[zone] or nil
                 local extra = O.extraDungeonQuests[id]
                 if extra then dungeon = dungeons[extra] or { name = "Dungeon", areaId = extra } end
@@ -591,6 +593,7 @@ function P:Update()
     end
 
     for _, line in ipairs(self.lines) do
+        line.eval = nil -- no stale results from an earlier update
         if (line.kind == "dungeon" or db.classQuests) and self:InReach(line, level) then
             local eval = self:EvaluateLine(line, level, levelXP)
             if eval.status == "trivial" then
@@ -650,7 +653,8 @@ function P:Update()
         for _, id in ipairs(self.worldByZone[zone] or {}) do
             if not IsDone(id) and not InLog(id) and not byKey[id .. ":pickup"]
                 and not IsTrivial(self:QuestLevel(id), level) and self:RequiredLevel(id) <= level then
-                local flags = Q:Quest(id, "specialFlags") or 0
+                local flags = Q:Quest(id, "specialFlags")
+                if type(flags) ~= "number" then flags = 0 end
                 if band(flags, 1) == 0 and PrereqsDone(id) and not BlockedByExclusive(id)
                     and not Q:Quest(id, "requiredSkill") then
                     local stop = AddStop(id, "pickup", nil, nil)

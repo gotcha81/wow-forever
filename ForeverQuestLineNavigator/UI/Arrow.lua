@@ -69,11 +69,12 @@ function A:Create()
     self:SetTextSize(db.arrowFrame.textSize)
 
     local elapsed = 0
+    local SafeTick = ns.Safe("arrow", function() A:Tick() end)
     f:SetScript("OnUpdate", function(_, dt)
         elapsed = elapsed + dt
         if elapsed < 0.03 then return end
         elapsed = 0
-        A:Tick()
+        SafeTick()
     end)
     f:Hide()
 end

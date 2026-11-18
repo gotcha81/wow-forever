@@ -89,7 +89,7 @@ end
 function X:OnQuestDataLoaded(questId, success)
     if success and questId then
         self.cache[questId] = nil
-        ns.RequestRefresh(1)
+        ns.RequestRefresh(2) -- many answers arrive together: one refresh for all
     end
 end
 

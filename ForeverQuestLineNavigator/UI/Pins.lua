@@ -41,9 +41,11 @@ local function MakePin(size)
     tex:SetAllPoints()
     tex:SetTexture(PIN_TEXTURE)
     pin.tex = tex
-    pin.label = pin:CreateFontString(nil, "OVERLAY", size >= 18 and "GameFontHighlightSmall" or "GameFontHighlightExtraSmall")
+    pin.label = pin:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    local font, _, flags = pin.label:GetFont()
+    if font then pin.label:SetFont(font, size >= 18 and 10 or 8, flags) end
     pin.label:SetPoint("CENTER", 0, 0)
-    pin:SetScript("OnEnter", OnEnter)
+    pin:SetScript("OnEnter", ns.Safe("pin tooltip", OnEnter))
     pin:SetScript("OnLeave", GameTooltip_Hide)
     pin:SetScript("OnClick", function(self) if self.stop then ns.Arrow:Pin(self.stop) end end)
     return pin
@@ -60,17 +62,24 @@ local function Prepare(pool, index, size, stop)
 end
 
 function Pins:Update()
-    HBDPins:RemoveAllWorldMapIcons(ADDON_NAME)
-    HBDPins:RemoveAllMinimapIcons(ADDON_NAME)
+    pcall(HBDPins.RemoveAllWorldMapIcons, HBDPins, ADDON_NAME)
+    pcall(HBDPins.RemoveAllMinimapIcons, HBDPins, ADDON_NAME)
+    for _, pin in ipairs(self.minimap) do pin:Hide() end
     if not ns.db.pins then return end
+    -- Inside instances the game may not tell addons where you are; the minimap
+    -- pins need that every frame, so they are left out there.
+    local minimapPins = not IsInInstance()
     local showFlag = HBD_PINS_WORLDMAP_SHOW_CONTINENT or 2
     for i, stop in ipairs(ns.Planner.route) do
         local p = stop.point
-        if p then
+        if p and type(p.uiMapId) == "number" and type(p.x) == "number" and type(p.y) == "number" then
             local worldPin = Prepare(self.world, i, 20, stop)
-            HBDPins:AddWorldMapIconMap(ADDON_NAME, worldPin, p.uiMapId, p.x, p.y, showFlag)
-            local miniPin = Prepare(self.minimap, i, 14, stop)
-            HBDPins:AddMinimapIconMap(ADDON_NAME, miniPin, p.uiMapId, p.x, p.y, true, ns.Arrow.target == stop)
+            pcall(HBDPins.AddWorldMapIconMap, HBDPins, ADDON_NAME, worldPin, p.uiMapId, p.x, p.y, showFlag)
+            if minimapPins then
+                local miniPin = Prepare(self.minimap, i, 14, stop)
+                pcall(HBDPins.AddMinimapIconMap, HBDPins, ADDON_NAME, miniPin, p.uiMapId, p.x, p.y, true,
+                    ns.Arrow.target == stop)
+            end
         end
     end
 end

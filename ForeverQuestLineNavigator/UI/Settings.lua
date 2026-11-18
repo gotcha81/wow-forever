@@ -57,7 +57,7 @@ local function Slider(parent, label, y, min, max, get, set)
     s:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
     s:SetMinMaxValues(min, max)
     s:SetValueStep(1)
-    s:SetObeyStepOnDrag(true)
+    if s.SetObeyStepOnDrag then s:SetObeyStepOnDrag(true) end
     local function Label(value) text:SetText(("%s: |cffffffff%d|r"):format(label, value)) end
     s.Refresh = function(self)
         self.updating = true
