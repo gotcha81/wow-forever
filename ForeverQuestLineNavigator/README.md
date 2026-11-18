@@ -23,6 +23,9 @@ Copy the `ForeverQuestLineNavigator` folder into `World of Warcraft\_forever_\In
   gives at least 35% of a level.
 - **Search** (the box under the tabs): searches every quest you can do by quest name, questline, dungeon,
   zone and the NPC that starts it. Grey quests are folded under a `+` row. Clears when the window closes.
+- **Nearby quest targets**: a small window lists the quest mobs and NPCs close to you (to kill, drop a
+  quest item, turn in to, or give the arrow's quest), with a click to target them. It finds them by
+  nameplates (V key), target, mouseover and combat. Settings: on/off and "also inside dungeons".
 - Right-click a quest to **ignore** its questline (saved per character). Ignored ones are listed at the
   bottom of the Route tab; right-click there to bring them back.
 - Optional (Settings, off by default): when you enter a dungeon, chat lists the quests for it you could have

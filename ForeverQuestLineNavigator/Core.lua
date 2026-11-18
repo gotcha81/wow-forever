@@ -129,6 +129,7 @@ ns.defaults = {
                point = { "RIGHT", "RIGHT", -80, 60 } }, -- list.dungeon = the dungeon picked in the Dungeon tab
     collapsed = { notWorth = true, trivial = true, ignored = true, dungeonDone = true, dungeonIgnored = true },
     arrowFrame = { locked = false, textSize = 12, point = { "TOP", "TOP", 0, -140 } },
+    nearby = { shown = true, inInstances = true, locked = false, point = { "TOP", "TOP", -300, -140 } },
     errorLog = {}, -- see the error log above
 }
 
@@ -169,6 +170,7 @@ function ns.Refresh()
     if not ns.ready then return end
     ns.Planner:Update()
     ns.Arrow:SetTarget(ns.Planner.route[1])
+    ns.Nearby:UpdateWanted()
     ns.List:Update()
     ns.Pins:Update()
 end
@@ -229,6 +231,7 @@ local function OnEvent(self, event, arg1, arg2)
         ns.Arrow:Create()
         ns.Arrow:ClearOldGameWaypoint()
         ns.MinimapButton:Create()
+        ns.Nearby:Create()
 
         -- Questie's public API tells us when its data is ready; a timer as backup.
         if Questie and Questie.API and type(Questie.API.RegisterOnReady) == "function" then

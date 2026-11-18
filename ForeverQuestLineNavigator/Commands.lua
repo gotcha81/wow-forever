@@ -114,6 +114,7 @@ local function Help()
     print("  /fqln lock|unlock arrow|window  - pin or free a position (or use the padlocks)")
     print("  /fqln d [name]  - the Dungeon tab (optionally pick a dungeon by name)")
     print("  /fqln dungeoncheck on|off  - list missing quests when you enter a dungeon")
+    print("  /fqln nearby on|off  - the Nearby quest targets window")
     print("  /fqln debug   - position / facing values (if the arrow does not turn)")
     print("  /fqln errors  - the error log (copy window); /fqln errors clear empties it")
     print("  /fqln riding auto|none|60|100  - riding speed (auto detects it)")
@@ -138,6 +139,10 @@ local function Status()
         local t = TOGGLES[name]
         print(("  %s: %s"):format(t.label, OnOff(db[t.key])))
     end
+    local wantedCount = 0
+    for _ in pairs(ns.Nearby.wanted) do wantedCount = wantedCount + 1 end
+    print(("  Nearby: %s, looking for %d NPCs, combat log %s"):format(OnOff(db.nearby.shown), wantedCount,
+        ns.Nearby.combatLog and "|cff40ff40available|r" or "not available (nameplates, target and mouseover only)"))
     local p = ns.Planner
     print(("  Route: %d stops, %d without map position, %d unlocking soon, %d not worth it, %d trivial lines"):format(
         #p.route, #p.unlocated, #p.upcoming, #p.notWorth, #p.trivial))
@@ -191,6 +196,12 @@ local function SlashCommand(input)
         end
         ns.List.picking = false
         ns.List:SetShown(true)
+    elseif cmd == "nearby" then
+        local n = db.nearby
+        if arg == "on" then n.shown = true elseif arg == "off" then n.shown = false else n.shown = not n.shown end
+        ns.Print("Nearby quest targets: " .. OnOff(n.shown))
+        if InCombatLockdown() then ns.Print("(the window updates after combat)") end
+        ns.Nearby:Redraw()
     elseif cmd == "dungeoncheck" then
         if arg == "on" then db.dungeonCheck = true
         elseif arg == "off" then db.dungeonCheck = false

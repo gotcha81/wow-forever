@@ -77,7 +77,7 @@ function S:Create()
     local db = ns.db
     local f = CreateFrame("Frame", "ForeverQuestLineNavigatorSettings", UIParent, "BackdropTemplate")
     self.frame = f
-    f:SetSize(WIDTH, 440)
+    f:SetSize(WIDTH, 520)
     f:SetPoint("CENTER")
     f:SetFrameStrata("DIALOG")
     f:SetClampedToScreen(true)
@@ -132,6 +132,13 @@ function S:Create()
     Add(Checkbox(f, "Check quests when entering a dungeon", -362, function() return db.dungeonCheck end,
         function(v) db.dungeonCheck = v end,
         "When you enter a dungeon, list in chat the quests for it you could have picked up but don't have."))
+
+    Header(f, "Nearby quest targets", -396)
+    Add(Checkbox(f, "Show quest NPCs that are near you", -414, function() return db.nearby.shown end,
+        function(v) db.nearby.shown = v; ns.Nearby:Redraw() end,
+        "A small window lists quest mobs and NPCs close to you, with a click to target them. Finds them by nameplates (V key), target, mouseover and combat."))
+    Add(Checkbox(f, "Also inside dungeons", -438, function() return db.nearby.inInstances end,
+        function(v) db.nearby.inInstances = v; ns.Nearby:Redraw() end))
 
     local hint = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     hint:SetPoint("BOTTOMLEFT", 14, 12)
