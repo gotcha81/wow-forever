@@ -1,7 +1,7 @@
 # Forever QuestLine Navigator
 
 A WoW Forever addon that shows the dungeon quest chains for your level, in pickup
-order, with numbered map pins (grey quests are left off the world map) and a blue arrow to the next stop.
+order, with numbered map pins (grey quests show on the maps only once they are in your quest log) and a blue arrow to the next stop.
 
 **Status:** first draft (0.3.0), focused on Horde. It is being tested on level 35 characters.
 

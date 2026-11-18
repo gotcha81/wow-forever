@@ -2,7 +2,7 @@
 ## Title: Forever QuestLine Navigator
 ## Notes: Dungeon quest chains for your level, in pickup order, with numbered map pins and a blue arrow. /fqln
 ## Author: gotcha81
-## Version: 0.4.3
+## Version: 0.4.4
 ## Dependencies: Questie, QuestieDB
 ## OptionalDeps: ForeverDungeonJournal, OpenMap
 ## SavedVariables: ForeverQuestLineNavigatorDB

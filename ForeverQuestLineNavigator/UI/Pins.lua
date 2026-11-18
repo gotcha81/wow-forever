@@ -72,11 +72,11 @@ function Pins:Update()
     local showFlag = HBD_PINS_WORLDMAP_SHOW_CONTINENT or 2
     for i, stop in ipairs(ns.Planner.route) do
         local p = stop.point
-        if p and type(p.uiMapId) == "number" and type(p.x) == "number" and type(p.y) == "number" then
-            if not stop.trivial then -- grey quests never go on the world map
-                local worldPin = Prepare(self.world, i, 20, stop)
-                pcall(HBDPins.AddWorldMapIconMap, HBDPins, ADDON_NAME, worldPin, p.uiMapId, p.x, p.y, showFlag)
-            end
+        -- grey quests stay off both maps unless you are on them (in your quest log)
+        local hidden = stop.trivial and not ns.Planner.InLog(stop.questId)
+        if not hidden and p and type(p.uiMapId) == "number" and type(p.x) == "number" and type(p.y) == "number" then
+            local worldPin = Prepare(self.world, i, 20, stop)
+            pcall(HBDPins.AddWorldMapIconMap, HBDPins, ADDON_NAME, worldPin, p.uiMapId, p.x, p.y, showFlag)
             if minimapPins then
                 local miniPin = Prepare(self.minimap, i, 14, stop)
                 pcall(HBDPins.AddMinimapIconMap, HBDPins, ADDON_NAME, miniPin, p.uiMapId, p.x, p.y, true,
