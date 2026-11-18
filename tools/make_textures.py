@@ -2,7 +2,7 @@
 
 All art is drawn from scratch here, so no third-party artwork is shipped.
 Usage:  python tools/make_textures.py <AddonFolder>
-Writes Arrow.tga, Pin.tga, Locked.tga and Unlocked.tga to <AddonFolder>/Media/.
+Writes Arrow.tga, Pin.tga, Locked.tga, Unlocked.tga and Cog.tga to <AddonFolder>/Media/.
 """
 import math
 import os
@@ -137,6 +137,27 @@ def make_lock(path, opened, size=32):
     write_tga(path, size, rows)
 
 
+def make_cog(path, size=32, teeth=8):
+    """Silver cogwheel with a hole in the middle."""
+    def in_cog(x, y):
+        dx, dy = x - 0.5, y - 0.5
+        d = math.hypot(dx, dy)
+        angle = math.atan2(dy, dx) % (2 * math.pi)
+        phase = (angle / (2 * math.pi) * teeth) % 1.0
+        outer = 0.47 if phase < 0.5 else 0.36  # teeth and the gaps between them
+        return 0.15 <= d <= outer
+
+    rows = []
+    for py in range(size):
+        row = []
+        for px in range(size):
+            c = coverage(px, py, size, in_cog)
+            shade = 200 + int(40 * (1 - py / size))  # lighter at the top
+            row.append((shade, shade, min(255, shade + 10), int(c * 255)))
+        rows.append(row)
+    write_tga(path, size, rows)
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit("usage: python tools/make_textures.py <AddonFolder>")
@@ -146,7 +167,8 @@ def main():
     make_pin(os.path.join(media, "Pin.tga"))
     make_lock(os.path.join(media, "Locked.tga"), opened=False)
     make_lock(os.path.join(media, "Unlocked.tga"), opened=True)
-    print("Wrote Arrow, Pin, Locked and Unlocked textures to", media)
+    make_cog(os.path.join(media, "Cog.tga"))
+    print("Wrote Arrow, Pin, Locked, Unlocked and Cog textures to", media)
 
 
 if __name__ == "__main__":

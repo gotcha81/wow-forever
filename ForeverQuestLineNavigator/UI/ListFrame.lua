@@ -4,7 +4,7 @@
 
 local ADDON_NAME, ns = ...
 
-local L = { rows = {}, checkboxes = {} }
+local L = { rows = {} }
 ns.List = L
 
 local MEDIA = "Interface\\AddOns\\" .. ADDON_NAME .. "\\Media\\"
@@ -43,31 +43,6 @@ local function LevelTag(level)
     return ("[%d] "):format(level)
 end
 
-local function Checkbox(parent, label, key, x, y, tooltip)
-    local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
-    cb:SetSize(22, 22)
-    cb:SetPoint("TOPLEFT", x, y)
-    local text = cb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    text:SetPoint("LEFT", cb, "RIGHT", 1, 0)
-    text:SetText(label)
-    cb.key = key
-    cb:SetChecked(ns.db[key])
-    L.checkboxes[#L.checkboxes + 1] = cb
-    cb:SetScript("OnClick", function(self)
-        ns.db[key] = self:GetChecked() and true or false
-        ns.Arrow:UpdateVisibility()
-        ns.RequestRefresh(0)
-    end)
-    cb:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:SetText(label, 1, 1, 1)
-        GameTooltip:AddLine(tooltip, nil, nil, nil, true)
-        GameTooltip:Show()
-    end)
-    cb:SetScript("OnLeave", GameTooltip_Hide)
-    return cb
-end
-
 function L:Create()
     local db = ns.db
     local f = CreateFrame("Frame", "ForeverQuestLineNavigatorList", UIParent, "BackdropTemplate")
@@ -101,26 +76,23 @@ function L:Create()
     title:SetPoint("TOPLEFT", 12, -10)
     title:SetText("|cff4da6ffQuestLine Navigator|r")
 
+    -- Title bar, right to left: close, minimize, cogwheel, padlock.
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", 0, 0)
     close:SetScript("OnClick", function() L:SetShown(false) end)
 
-    local mapButton = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    mapButton:SetSize(54, 20)
-    mapButton:SetPoint("TOPRIGHT", -30, -8)
-    mapButton:SetText("Map")
-    mapButton:SetScript("OnClick", function() ToggleWorldMap() end)
-
     local W = ns.Widgets
-    local minimize = W.TextButton(f, 20, 20, db.list.minimized and "+" or "-", "Minimize / restore the window",
+    local minimize = W.TextButton(f, 18, 18, db.list.minimized and "+" or "-", "Minimize / restore the window",
         function(self)
             L:SetMinimized(not db.list.minimized)
             self.label:SetText(db.list.minimized and "+" or "-")
         end)
-    minimize:SetPoint("TOPRIGHT", -88, -8)
+    minimize:SetPoint("TOPRIGHT", -32, -8)
+    local cog = W.IconButton(f, 18, "Cog", "Settings", function() ns.Settings:Toggle() end)
+    cog:SetPoint("RIGHT", minimize, "LEFT", -6, 0)
     local lock = W.LockButton(f, 18, function() return db.list.locked end,
         function(v) db.list.locked = v end, "The window")
-    lock:SetPoint("RIGHT", minimize, "LEFT", -4, 0)
+    lock:SetPoint("RIGHT", cog, "LEFT", -6, 0)
 
     -- one line shown while minimized: the next stop
     self.mini = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -129,20 +101,8 @@ function L:Create()
     self.mini:SetJustifyH("LEFT")
     self.mini:SetWordWrap(false)
 
-    Checkbox(f, "Dungeon focus", "dungeonFocus", 10, -32,
-        "On: only dungeon questlines (and class quests).\nOff: also open-world quests in the zones your route already passes through.")
-    Checkbox(f, "Class quests", "classQuests", 140, -32, "Include questlines for your class.")
-    Checkbox(f, "Travel time", "travelTime", 270, -32,
-        "Count boats and zeppelins as 'just missed it' (a full wait) when the route changes continent. Off: a rough fixed estimate.")
-    Checkbox(f, "Arrow", "arrow", 10, -54, "Show the blue arrow to stop #1. It is always hidden inside instances.")
-    Checkbox(f, "Map pins", "pins", 140, -54, "Numbered pins on the world map (OpenMap too) and the minimap.")
-
-    self.status = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    self.status:SetPoint("TOPLEFT", 272, -59)
-    self.status:SetJustifyH("LEFT")
-
     local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", 8, -82)
+    scroll:SetPoint("TOPLEFT", 8, -34)
     scroll:SetPoint("BOTTOMRIGHT", -28, 10)
     local content = CreateFrame("Frame", nil, scroll)
     content:SetSize(WIDTH - 40, 10)
@@ -150,6 +110,7 @@ function L:Create()
     self.content = content
     self.scroll = scroll
 
+    self:SetTextSize(db.list.textSize)
     self:SetMinimized(db.list.minimized)
     f:SetShown(db.list.shown)
     C_Timer.NewTicker(2, function()
@@ -170,8 +131,6 @@ local MINIMIZED_HEIGHT = 54
 function L:SetMinimized(minimized)
     ns.db.list.minimized = minimized
     local f = self.frame
-    for _, cb in ipairs(self.checkboxes) do cb:SetShown(not minimized) end
-    self.status:SetShown(not minimized)
     self.scroll:SetShown(not minimized)
     self.mini:SetShown(minimized)
     -- keep the title bar where it is: grow / shrink downwards
@@ -283,20 +242,19 @@ function L:GetRow(index)
     row.number = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.number:SetPoint("CENTER", row.badge, "CENTER", 0, 0)
 
-    local function Line(font, y)
+    local function Line(font)
         local fs = row:CreateFontString(nil, "OVERLAY", font)
-        fs:SetPoint("TOPLEFT", 30, y)
-        fs:SetPoint("RIGHT", -4, 0)
         fs:SetJustifyH("LEFT")
         fs:SetWordWrap(false)
         return fs
     end
-    row.line1 = Line("GameFontHighlight", -3)
-    row.line2 = Line("GameFontDisableSmall", -18)
-    row.line3 = Line("GameFontNormalSmall", -31)
+    row.line1 = Line("GameFontHighlight")
+    row.line2 = Line("GameFontDisableSmall")
+    row.line3 = Line("GameFontNormalSmall")
 
     row.header = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     row.header:SetPoint("BOTTOMLEFT", 4, 4)
+    self:ApplyFont(row)
 
     row:SetScript("OnEnter", RowTooltip)
     row:SetScript("OnLeave", GameTooltip_Hide)
@@ -312,6 +270,37 @@ function L:GetRow(index)
     end)
     self.rows[index] = row
     return row
+end
+
+-- Text size (Settings): line 1 and headers at the chosen size, lines 2-3 a bit smaller.
+local function SetSize(fs, size)
+    local font, _, flags = fs:GetFont()
+    fs:SetFont(font, size, flags)
+end
+
+function L:ApplyFont(row)
+    local size = ns.db.list.textSize
+    local small = size - 2
+    SetSize(row.line1, size)
+    SetSize(row.line2, small)
+    SetSize(row.line3, small)
+    SetSize(row.header, size + 1)
+    local y2 = -(3 + size + 3)
+    local y3 = y2 - (small + 3)
+    for fs, y in pairs({ [row.line1] = -3, [row.line2] = y2, [row.line3] = y3 }) do
+        fs:ClearAllPoints()
+        fs:SetPoint("TOPLEFT", 30, y)
+        fs:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+    end
+    ROW_HEIGHT = -y3 + small + 6
+    HEADER_HEIGHT = size + 12
+end
+
+function L:SetTextSize(size)
+    ns.db.list.textSize = math.max(9, math.min(18, math.floor(size)))
+    for _, row in ipairs(self.rows) do self:ApplyFont(row) end
+    SetSize(self.mini, ns.db.list.textSize)
+    self:Update()
 end
 
 function L:Fill(row, item)
@@ -372,7 +361,7 @@ end
 
 function L:Update()
     if not self.frame or not self.frame:IsShown() or not ns.ready then return end
-    for _, cb in ipairs(self.checkboxes) do cb:SetChecked(ns.db[cb.key]) end
+    if ns.Settings.frame and ns.Settings.frame:IsShown() then ns.Settings:Refresh() end
     if ns.db.list.minimized then
         self:UpdateMini()
         return
@@ -410,9 +399,6 @@ function L:Update()
     end
     for i = #items + 1, #self.rows do self.rows[i]:Hide() end
     self.content:SetHeight(math.max(10, y))
-
-    local speed = planner:Riding()
-    self.status:SetText(("Riding: %s"):format(speed > 0 and (speed .. "%") or "none"))
 end
 
 function L:UpdateDistances()

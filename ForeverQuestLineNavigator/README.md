@@ -17,8 +17,9 @@ Copy the `ForeverQuestLineNavigator` folder into `World of Warcraft\_forever_\In
 - `/fqln help`: all commands.
 - `/fqln status`: shows what the addon is using right now.
 - Click a quest in the list, or a pin on the map, to point the arrow at it.
-- Hover the arrow for a padlock (pin it in place), text size (A- / A+) and hide.
-- The quest window has a padlock and a minimize button. Minimized, it shows only your next stop.
+- Hover the arrow for a padlock (pin it in place) and a cogwheel (settings). Right-click it to hide it.
+- The quest window has a padlock, a cogwheel and a minimize button. Minimized, it shows only your next stop.
+- Settings (cogwheel) has the text sizes for the arrow and the quest window, plus the on/off switches.
 - The QN minimap button: left-click opens the list, right-click turns the arrow on or off.
 - The arrow is hidden inside dungeons, raids, battlegrounds and arenas. The list keeps working.
 - `/fqln debug` opens a window with position values to copy (Ctrl+C) when reporting a problem.

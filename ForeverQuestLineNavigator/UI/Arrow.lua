@@ -1,7 +1,7 @@
 -- Navigation to route stop #1 (or the stop you clicked):
 --  * the blue arrow: turns with you, turns green when you face the right way,
 --    shows what to do, where, and how far. Hover it for a padlock (pin its
---    position), text size buttons and a hide button.
+--    position) and a cogwheel (settings). Right-click hides it.
 -- Hidden inside instances.
 
 local ADDON_NAME, ns = ...
@@ -37,23 +37,18 @@ function A:Create()
     f:SetScript("OnClick", function() A:Hide() end)
     f:SetScript("OnEnter", function() A:ShowControls() end)
 
-    -- Hover bar: padlock, text smaller / larger, hide.
+    -- Hover bar: padlock and cogwheel.
     local W = ns.Widgets
     local bar = CreateFrame("Frame", nil, f)
-    bar:SetSize(104, 20)
+    bar:SetSize(42, 18)
     bar:SetPoint("BOTTOM", f, "TOP", 0, 2)
     bar:Hide()
     f.bar = bar
     local lock = W.LockButton(bar, 18, function() return db.arrowFrame.locked end,
         function(v) db.arrowFrame.locked = v end, "The arrow")
     lock:SetPoint("LEFT", 0, 0)
-    local smaller = W.TextButton(bar, 26, 18, "A-", "Smaller text", function() A:SetTextSize(db.arrowFrame.textSize - 1) end)
-    smaller:SetPoint("LEFT", lock, "RIGHT", 4, 0)
-    local larger = W.TextButton(bar, 26, 18, "A+", "Larger text", function() A:SetTextSize(db.arrowFrame.textSize + 1) end)
-    larger:SetPoint("LEFT", smaller, "RIGHT", 2, 0)
-    local hide = W.TextButton(bar, 20, 18, "x", "Hide the arrow (/fqln arrow on, or the list's Arrow box, shows it again)",
-        function() A:Hide() end)
-    hide:SetPoint("LEFT", larger, "RIGHT", 4, 0)
+    local cog = W.IconButton(bar, 18, "Cog", "Settings", function() ns.Settings:Toggle() end)
+    cog:SetPoint("LEFT", lock, "RIGHT", 6, 0)
     -- the bar stays while the mouse is over the arrow or the bar
     bar:SetScript("OnUpdate", function(self, dt)
         self.idle = (MouseIsOver(f) or MouseIsOver(self)) and 0 or (self.idle or 0) + dt
@@ -104,7 +99,7 @@ function A:Hide()
     ns.db.arrow = false
     self:UpdateVisibility()
     ns.List:Update()
-    ns.Print("arrow hidden. Tick 'Arrow' in the list, or type /fqln arrow on, to show it again.")
+    ns.Print("arrow hidden. Turn it on again in Settings (the cogwheel), or type /fqln arrow on.")
 end
 
 -- Called after each route update. Keeps a clicked stop if it is still on the route.

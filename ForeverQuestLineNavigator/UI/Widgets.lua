@@ -38,6 +38,28 @@ function W.LockButton(parent, size, isLocked, setLocked, what)
     return b
 end
 
+-- Button showing one of our textures (cogwheel, ...), brighter on hover.
+function W.IconButton(parent, size, texture, tooltip, onClick)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(size, size)
+    b.tex = b:CreateTexture(nil, "ARTWORK")
+    b.tex:SetAllPoints()
+    b.tex:SetTexture(MEDIA .. texture)
+    b.tex:SetVertexColor(0.85, 0.85, 0.85)
+    b:SetScript("OnClick", onClick)
+    b:SetScript("OnEnter", function(self)
+        self.tex:SetVertexColor(1, 1, 1)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText(tooltip, 1, 1, 1)
+        GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function(self)
+        self.tex:SetVertexColor(0.85, 0.85, 0.85)
+        GameTooltip:Hide()
+    end)
+    return b
+end
+
 -- Small square button with a text label ("-", "+", "A-", ...).
 function W.TextButton(parent, width, height, label, tooltip, onClick)
     local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
