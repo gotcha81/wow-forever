@@ -1,0 +1,17 @@
+# --- IDE / Python (local only, never commit) ---
+.idea/
+.venv/
+
+# --- Local machine config & secrets (never commit) ---
+# Holds things like the local game install path.
+*.local.*
+.env
+.env.*
+
+# --- Build output (per-addon zips are built, not committed) ---
+dist/
+
+# --- OS junk ---
+Thumbs.db
+desktop.ini
+.DS_Store

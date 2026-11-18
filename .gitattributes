@@ -1,0 +1,18 @@
+# Normalize line endings: stored as LF in the repo, native on checkout.
+* text=auto
+
+# Addon source files
+*.lua text
+*.xml text
+*.toc text
+*.md  text
+
+# Game assets (never touch line endings)
+*.blp binary
+*.tga binary
+*.png binary
+*.jpg binary
+*.ogg binary
+*.mp3 binary
+*.ttf binary
+*.zip binary
