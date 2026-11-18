@@ -36,6 +36,22 @@ local function NpcIdFromGUID(guid)
     if kind == "Creature" or kind == "Vehicle" then return tonumber(id) end
 end
 
+-- true / false when the game tells us, nil when it doesn't (or the unit is gone)
+local function UnitDead(unit)
+    if not unit or not UnitExists(unit) then return nil end
+    local dead = UnitIsDead(unit)
+    if not Readable(dead) then return nil end
+    return dead and true or false
+end
+
+-- The unit token that is this GUID right now (nameplate, target or mouseover).
+local function UnitFor(guid, s)
+    for _, unit in ipairs({ s.plate, "target", "mouseover" }) do
+        local g = unit and UnitGUID(unit)
+        if Readable(g) and g == guid then return unit end
+    end
+end
+
 ---------------------------------------------------------------------------------------
 -- Which NPCs we look for
 ---------------------------------------------------------------------------------------
@@ -136,16 +152,15 @@ function N:See(guid, unit, fromPlate)
     end
     s.time = GetTime()
     if fromPlate then s.plate = unit end
-    if unit then
-        local dead = UnitIsDead(unit)
-        if Readable(dead) then s.dead = dead and true or false end
-    end
+    local dead = UnitDead(unit)
+    if dead ~= nil then s.dead = dead end
     self.changed = true
 end
 
 function N:PlateGone(unit)
     for _, s in pairs(self.seen) do
         if s.plate == unit then
+            if UnitDead(unit) then s.dead = true end -- nameplates go away when a mob dies
             s.plate = nil
             s.time = GetTime() - (LINGER - PLATE_LINGER)
             self.changed = true
@@ -158,13 +173,17 @@ function N:Died(guid)
     if s then s.dead = true; self.changed = true end
 end
 
--- Groups by NPC: { { w = wanted entry, count = alive ones near } }
+-- Groups by NPC: { { w = wanted entry, count = alive ones near } }. Dead ones are left out.
 function N:Groups()
     local now, counts = GetTime(), {}
     for guid, s in pairs(self.seen) do
-        if not s.plate and now - s.time > LINGER then
+        if not s.dead then
+            local dead = UnitDead(UnitFor(guid, s)) -- look again: it may have died since
+            if dead then s.dead = true end
+        end
+        if (not s.plate and now - s.time > LINGER) or s.dead then
             self.seen[guid] = nil
-        elseif not s.dead then
+        else
             counts[s.npcId] = (counts[s.npcId] or 0) + 1
         end
     end
