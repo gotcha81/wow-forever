@@ -80,7 +80,9 @@ function L:Create()
     f:SetMovable(true)
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStart", function(self)
+        if not db.list.locked then self:StartMoving() end
+    end)
     f:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
         local a, _, b, x, y = self:GetPoint()
@@ -109,6 +111,24 @@ function L:Create()
     mapButton:SetText("Map")
     mapButton:SetScript("OnClick", function() ToggleWorldMap() end)
 
+    local W = ns.Widgets
+    local minimize = W.TextButton(f, 20, 20, db.list.minimized and "+" or "-", "Minimize / restore the window",
+        function(self)
+            L:SetMinimized(not db.list.minimized)
+            self.label:SetText(db.list.minimized and "+" or "-")
+        end)
+    minimize:SetPoint("TOPRIGHT", -88, -8)
+    local lock = W.LockButton(f, 18, function() return db.list.locked end,
+        function(v) db.list.locked = v end, "The window")
+    lock:SetPoint("RIGHT", minimize, "LEFT", -4, 0)
+
+    -- one line shown while minimized: the next stop
+    self.mini = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    self.mini:SetPoint("TOPLEFT", 12, -34)
+    self.mini:SetPoint("RIGHT", -12, 0)
+    self.mini:SetJustifyH("LEFT")
+    self.mini:SetWordWrap(false)
+
     Checkbox(f, "Dungeon focus", "dungeonFocus", 10, -32,
         "On: only dungeon questlines (and class quests).\nOff: also open-world quests in the zones your route already passes through.")
     Checkbox(f, "Class quests", "classQuests", 140, -32, "Include questlines for your class.")
@@ -128,7 +148,9 @@ function L:Create()
     content:SetSize(WIDTH - 40, 10)
     scroll:SetScrollChild(content)
     self.content = content
+    self.scroll = scroll
 
+    self:SetMinimized(db.list.minimized)
     f:SetShown(db.list.shown)
     C_Timer.NewTicker(2, function()
         if f:IsShown() and ns.ready then L:UpdateDistances() end
@@ -142,6 +164,40 @@ function L:SetShown(shown)
 end
 
 function L:Toggle() self:SetShown(not self.frame:IsShown()) end
+
+local MINIMIZED_HEIGHT = 54
+
+function L:SetMinimized(minimized)
+    ns.db.list.minimized = minimized
+    local f = self.frame
+    for _, cb in ipairs(self.checkboxes) do cb:SetShown(not minimized) end
+    self.status:SetShown(not minimized)
+    self.scroll:SetShown(not minimized)
+    self.mini:SetShown(minimized)
+    -- keep the title bar where it is: grow / shrink downwards
+    local top, left = f:GetTop(), f:GetLeft()
+    f:SetHeight(minimized and MINIMIZED_HEIGHT or HEIGHT)
+    if top and left then
+        f:ClearAllPoints()
+        f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+        local a, _, b, x, y = f:GetPoint()
+        ns.db.list.point = { a, b, x, y }
+    end
+    self:Update()
+end
+
+function L:UpdateMini()
+    local stop = ns.Arrow.target or ns.Planner.route[1]
+    if not stop then
+        self.mini:SetText("|cff808080No stops right now|r")
+        return
+    end
+    local number = 1
+    for i, s in ipairs(ns.Planner.route) do if s == stop then number = i; break end end
+    local yards = ns.Planner:DistanceTo(stop)
+    self.mini:SetText(("%d. %s%s%s"):format(number, ns.Widgets.StateTag(stop.state), stop.name,
+        yards and ("  ·  %d yd"):format(yards) or ""))
+end
 
 ---------------------------------------------------------------------------------------
 -- Tooltips
@@ -285,7 +341,7 @@ function L:Fill(row, item)
         if stop.primary and #stop.primary.line.steps > 1 then
             stepText = (" |cff808080(%d/%d)|r"):format(stop.primary.index, #stop.primary.line.steps)
         end
-        row.line1:SetText(LevelTag(stop.level) .. stop.name .. stepText)
+        row.line1:SetText(LevelTag(stop.level) .. ns.Widgets.StateTag(stop.state) .. stop.name .. stepText)
         local parts = ""
         if stop.primary and #stop.primary.line.parts > 1 then
             local line = stop.primary.line
@@ -317,6 +373,10 @@ end
 function L:Update()
     if not self.frame or not self.frame:IsShown() or not ns.ready then return end
     for _, cb in ipairs(self.checkboxes) do cb:SetChecked(ns.db[cb.key]) end
+    if ns.db.list.minimized then
+        self:UpdateMini()
+        return
+    end
     local planner = ns.Planner
     local collapsed = ns.db.collapsed
     local items = {}
@@ -356,6 +416,10 @@ function L:Update()
 end
 
 function L:UpdateDistances()
+    if ns.db.list.minimized then
+        self:UpdateMini()
+        return
+    end
     for _, row in ipairs(self.rows) do
         if row:IsShown() and row.item and row.item.stop then self:Fill(row, row.item) end
     end

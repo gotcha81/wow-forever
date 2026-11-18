@@ -25,6 +25,7 @@ Sources\Position.lua
 Planner.lua
 
 # Interface
+UI\Widgets.lua
 UI\ListFrame.lua
 UI\Pins.lua
 UI\Arrow.lua

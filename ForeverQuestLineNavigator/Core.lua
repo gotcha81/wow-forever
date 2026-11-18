@@ -25,9 +25,9 @@ ns.defaults = {
     levelAhead   = 2,      -- list chains whose first step unlocks within this many levels
     boatWait     = 300,    -- seconds: "just missed it" wait for a boat or zeppelin
     maxStops     = 25,     -- numbered stops on the route
-    list   = { shown = true, point = { "RIGHT", "RIGHT", -80, 60 } },
+    list   = { shown = true, locked = false, minimized = false, point = { "RIGHT", "RIGHT", -80, 60 } },
     collapsed = { notWorth = true, trivial = true }, -- list sections folded shut
-    arrowFrame = { point = { "TOP", "TOP", 0, -140 } },
+    arrowFrame = { locked = false, textSize = 12, point = { "TOP", "TOP", 0, -140 } },
 }
 
 local function ApplyDefaults(db, defaults)

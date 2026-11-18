@@ -11,9 +11,60 @@ local TOGGLES = {
     waypoint = { key = "gameWaypoint", label = "Game waypoint (experimental)" },
 }
 
+-- A small window with selectable text, so output can be copied (Ctrl+C).
+local copyFrame
+function ns.ShowCopy(title, text)
+    if not copyFrame then
+        local f = CreateFrame("Frame", "ForeverQuestLineNavigatorCopy", UIParent, "BackdropTemplate")
+        f:SetSize(580, 340)
+        f:SetPoint("CENTER")
+        f:SetFrameStrata("DIALOG")
+        f:SetMovable(true)
+        f:EnableMouse(true)
+        f:RegisterForDrag("LeftButton")
+        f:SetScript("OnDragStart", f.StartMoving)
+        f:SetScript("OnDragStop", f.StopMovingOrSizing)
+        f:SetBackdrop({
+            bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true, tileSize = 16, edgeSize = 16,
+            insets = { left = 4, right = 4, top = 4, bottom = 4 },
+        })
+        f:SetBackdropColor(0.04, 0.07, 0.13, 0.95)
+        f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        f.title:SetPoint("TOPLEFT", 12, -10)
+        local hint = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        hint:SetPoint("TOPRIGHT", -34, -12)
+        hint:SetText("Ctrl+A to select all, Ctrl+C to copy, Esc to close")
+        local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+        close:SetPoint("TOPRIGHT", 0, 0)
+        local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
+        scroll:SetPoint("TOPLEFT", 12, -32)
+        scroll:SetPoint("BOTTOMRIGHT", -32, 12)
+        local edit = CreateFrame("EditBox", nil, scroll)
+        edit:SetMultiLine(true)
+        edit:SetAutoFocus(false)
+        edit:SetFontObject(ChatFontNormal)
+        edit:SetWidth(530)
+        edit:SetScript("OnEscapePressed", function() f:Hide() end)
+        scroll:SetScrollChild(edit)
+        f.edit = edit
+        tinsert(UISpecialFrames, f:GetName())
+        copyFrame = f
+    end
+    copyFrame.title:SetText(title)
+    copyFrame.edit:SetText(text)
+    copyFrame:Show()
+    copyFrame.edit:SetFocus()
+    copyFrame.edit:HighlightText()
+end
+
 local function Debug()
+    local lines = {}
+    local function print(text) lines[#lines + 1] = text end
+    lines[1] = ("QuestLine Navigator %s debug"):format(C_AddOns and C_AddOns.GetAddOnMetadata
+        and C_AddOns.GetAddOnMetadata(ns.ADDON_NAME, "Version") or "")
     local Pos = ns.Pos
-    ns.Print("debug:")
     local px, py, continent = Pos.Player()
     print(("  Player world: %s, %s  continent: %s"):format(tostring(px), tostring(py), tostring(continent)))
     print("  Facing: " .. tostring(Pos.Facing()))
@@ -31,6 +82,27 @@ local function Debug()
     else
         print("  Target: none")
     end
+
+    -- Game waypoint (/fqln waypoint): what the game says about it
+    local has = function(t, k) return t and type(t[k]) == "function" and "yes" or "no" end
+    print(("  Waypoint option: %s  APIs: SetUserWaypoint %s, UiMapPoint %s, SuperTrack %s"):format(
+        tostring(ns.db.gameWaypoint), has(C_Map, "SetUserWaypoint"),
+        (UiMapPoint and UiMapPoint.CreateFromCoordinates) and "yes" or "no",
+        has(C_SuperTrack, "SetSuperTrackedUserWaypoint")))
+    if target and target.point and C_Map and C_Map.CanSetUserWaypointOnMap then
+        local ok, can = pcall(C_Map.CanSetUserWaypointOnMap, target.point.uiMapId)
+        print("  Can set waypoint on target map: " .. tostring(ok and can))
+    end
+    if C_Map and C_Map.HasUserWaypoint then
+        local ok, hasPoint = pcall(C_Map.HasUserWaypoint)
+        print("  Game has a waypoint now: " .. tostring(ok and hasPoint))
+    end
+    if C_SuperTrack and C_SuperTrack.IsSuperTrackingUserWaypoint then
+        local ok, tracking = pcall(C_SuperTrack.IsSuperTrackingUserWaypoint)
+        print("  Game is tracking it: " .. tostring(ok and tracking))
+    end
+    print("  Set by this addon: " .. tostring(ns.Arrow.waypointSet ~= nil))
+    ns.ShowCopy("QuestLine Navigator: debug", table.concat(lines, "\n"))
 end
 
 local function OnOff(value) return value and "|cff40ff40on|r" or "|cffff5555off|r" end
@@ -40,6 +112,8 @@ local function Help()
     print("  /fqln  - show or hide the quest list")
     print("  /fqln arrow|pins|dungeon|class|travel|waypoint on|off")
     print("  /fqln minimap on|off  - the QN minimap button")
+    print("  /fqln arrowtext <8-24>  - text size under the arrow (now " .. ns.db.arrowFrame.textSize .. ")")
+    print("  /fqln lock|unlock arrow|window  - pin or free a position (or use the padlocks)")
     print("  /fqln debug   - position / facing values (if the arrow does not turn)")
     print("  /fqln riding auto|none|60|100  - riding speed (auto detects it)")
     print("  /fqln ahead <levels>  - list chains that unlock within this many levels (now " .. ns.db.levelAhead .. ")")
@@ -112,6 +186,24 @@ SlashCmdList.FOREVERQUESTLINENAVIGATOR = function(input)
         Status()
     elseif cmd == "debug" then
         Debug()
+    elseif cmd == "arrowtext" then
+        local n = tonumber(arg)
+        if n then
+            ns.Arrow:SetTextSize(n)
+            ns.Print("arrow text size: " .. db.arrowFrame.textSize)
+        else
+            ns.Print("use: /fqln arrowtext <8-24>")
+        end
+    elseif cmd == "lock" or cmd == "unlock" then
+        local locked = cmd == "lock"
+        if arg == "arrow" then
+            db.arrowFrame.locked = locked
+        elseif arg == "window" or arg == "list" then
+            db.list.locked = locked
+        else
+            db.arrowFrame.locked, db.list.locked = locked, locked
+        end
+        ns.Print((locked and "locked" or "unlocked") .. ". Type /reload to update the padlock icons.")
     elseif cmd == "minimap" then
         local shown = (arg == "on") or (arg ~= "off" and not db.minimap.shown)
         ns.MinimapButton:SetShown(shown)

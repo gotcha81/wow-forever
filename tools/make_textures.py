@@ -2,7 +2,7 @@
 
 All art is drawn from scratch here, so no third-party artwork is shipped.
 Usage:  python tools/make_textures.py <AddonFolder>
-Writes <AddonFolder>/Media/Arrow.tga and <AddonFolder>/Media/Pin.tga.
+Writes Arrow.tga, Pin.tga, Locked.tga and Unlocked.tga to <AddonFolder>/Media/.
 """
 import math
 import os
@@ -101,6 +101,42 @@ def make_pin(path, size=32):
     write_tga(path, size, rows)
 
 
+def make_lock(path, opened, size=32):
+    """Gold padlock. `opened` lifts the shackle and swings it to the right."""
+    body = (0.20, 0.46, 0.80, 0.92)  # x0, y0, x1, y1 of the lock body
+    lift = 0.10 if opened else 0.0
+    shift = 0.17 if opened else 0.0
+    cx, cy, r_out, r_in = 0.50 + shift, 0.46 - lift, 0.24, 0.14
+
+    def in_body(x, y):
+        return body[0] <= x <= body[2] and body[1] <= y <= body[3]
+
+    def in_shackle(x, y):
+        d = math.hypot(x - cx, y - cy)
+        ring = r_in <= d <= r_out and y <= cy
+        leg_l = (cx - r_out) <= x <= (cx - r_in) and cy <= y <= body[1] + 0.02
+        leg_r = (cx + r_in) <= x <= (cx + r_out) and cy <= y <= body[1] + 0.02
+        if opened:
+            leg_l = False  # the free end hangs open
+        return ring or leg_l or leg_r
+
+    def in_keyhole(x, y):
+        return math.hypot(x - 0.50, y - 0.64) <= 0.06 or (0.47 <= x <= 0.53 and 0.64 <= y <= 0.80)
+
+    rows = []
+    for py in range(size):
+        row = []
+        for px in range(size):
+            c_body = coverage(px, py, size, lambda x, y: in_body(x, y) and not in_keyhole(x, y))
+            c_shackle = coverage(px, py, size, in_shackle)
+            gold = (255, 205, 60, c_body)
+            steel = (210, 210, 215, c_shackle)
+            r, g, b, a = blend(gold, steel)
+            row.append((int(r), int(g), int(b), int(a * 255)))
+        rows.append(row)
+    write_tga(path, size, rows)
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit("usage: python tools/make_textures.py <AddonFolder>")
@@ -108,7 +144,9 @@ def main():
     os.makedirs(media, exist_ok=True)
     make_arrow(os.path.join(media, "Arrow.tga"))
     make_pin(os.path.join(media, "Pin.tga"))
-    print("Wrote Arrow.tga and Pin.tga to", media)
+    make_lock(os.path.join(media, "Locked.tga"), opened=False)
+    make_lock(os.path.join(media, "Unlocked.tga"), opened=True)
+    print("Wrote Arrow, Pin, Locked and Unlocked textures to", media)
 
 
 if __name__ == "__main__":

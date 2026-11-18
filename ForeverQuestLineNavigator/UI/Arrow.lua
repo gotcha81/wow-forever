@@ -1,6 +1,7 @@
 -- Navigation to route stop #1 (or the stop you clicked):
 --  * the blue arrow: turns with you, turns green when you face the right way,
---    shows what to do, where, and how far;
+--    shows what to do, where, and how far. Hover it for a padlock (pin its
+--    position), text size buttons and a hide button;
 --  * optional: the game's own waypoint (Retail-style map pin + in-world marker).
 --    Off by default, because the waypoint API is reported unreliable on Forever.
 -- Both are hidden / cleared inside instances.
@@ -27,24 +28,39 @@ function A:Create()
     f:SetMovable(true)
     f:RegisterForDrag("LeftButton")
     f:RegisterForClicks("RightButtonUp")
-    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStart", function(self)
+        if not db.arrowFrame.locked then self:StartMoving() end
+    end)
     f:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
         local a, _, b, x, y = self:GetPoint()
         db.arrowFrame.point = { a, b, x, y }
     end)
-    f:SetScript("OnClick", function()
-        db.arrow = false
-        A:UpdateVisibility()
-        ns.Print("arrow hidden. Type /fqln arrow on to show it again.")
+    f:SetScript("OnClick", function() A:Hide() end)
+    f:SetScript("OnEnter", function() A:ShowControls() end)
+
+    -- Hover bar: padlock, text smaller / larger, hide.
+    local W = ns.Widgets
+    local bar = CreateFrame("Frame", nil, f)
+    bar:SetSize(104, 20)
+    bar:SetPoint("BOTTOM", f, "TOP", 0, 2)
+    bar:Hide()
+    f.bar = bar
+    local lock = W.LockButton(bar, 18, function() return db.arrowFrame.locked end,
+        function(v) db.arrowFrame.locked = v end, "The arrow")
+    lock:SetPoint("LEFT", 0, 0)
+    local smaller = W.TextButton(bar, 26, 18, "A-", "Smaller text", function() A:SetTextSize(db.arrowFrame.textSize - 1) end)
+    smaller:SetPoint("LEFT", lock, "RIGHT", 4, 0)
+    local larger = W.TextButton(bar, 26, 18, "A+", "Larger text", function() A:SetTextSize(db.arrowFrame.textSize + 1) end)
+    larger:SetPoint("LEFT", smaller, "RIGHT", 2, 0)
+    local hide = W.TextButton(bar, 20, 18, "x", "Hide the arrow (/fqln arrow on, or the list's Arrow box, shows it again)",
+        function() A:Hide() end)
+    hide:SetPoint("LEFT", larger, "RIGHT", 4, 0)
+    -- the bar stays while the mouse is over the arrow or the bar
+    bar:SetScript("OnUpdate", function(self, dt)
+        self.idle = (MouseIsOver(f) or MouseIsOver(self)) and 0 or (self.idle or 0) + dt
+        if self.idle > 0.4 then self:Hide() end
     end)
-    f:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        GameTooltip:SetText("QuestLine Navigator", 0.3, 0.65, 1)
-        GameTooltip:AddLine("Drag to move. Right-click to hide.", 0.8, 0.8, 0.8)
-        GameTooltip:Show()
-    end)
-    f:SetScript("OnLeave", GameTooltip_Hide)
 
     f.tex = f:CreateTexture(nil, "ARTWORK")
     f.tex:SetAllPoints()
@@ -57,6 +73,8 @@ function A:Create()
     f.info = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     f.info:SetPoint("TOP", f.where, "BOTTOM", 0, -2)
 
+    self:SetTextSize(db.arrowFrame.textSize)
+
     local elapsed = 0
     f:SetScript("OnUpdate", function(_, dt)
         elapsed = elapsed + dt
@@ -65,6 +83,30 @@ function A:Create()
         A:Tick()
     end)
     f:Hide()
+end
+
+local MIN_TEXT, MAX_TEXT = 8, 24
+
+function A:SetTextSize(size)
+    size = math.max(MIN_TEXT, math.min(MAX_TEXT, math.floor(size)))
+    ns.db.arrowFrame.textSize = size
+    local f = self.frame
+    local font, _, flags = GameFontNormal:GetFont()
+    f.title:SetFont(font, size, flags)
+    f.where:SetFont(font, math.max(MIN_TEXT, size - 2), flags)
+    f.info:SetFont(font, size, flags)
+end
+
+function A:ShowControls()
+    self.frame.bar.idle = 0
+    self.frame.bar:Show()
+end
+
+function A:Hide()
+    ns.db.arrow = false
+    self:UpdateVisibility()
+    ns.List:Update()
+    ns.Print("arrow hidden. Tick 'Arrow' in the list, or type /fqln arrow on, to show it again.")
 end
 
 -- Called after each route update. Keeps a clicked stop if it is still on the route.
@@ -130,7 +172,7 @@ function A:Tick()
 
     local number = 1
     for i, s in ipairs(ns.Planner.route) do if s == stop then number = i; break end end
-    f.title:SetText(("%d. %s: %s"):format(number, ACTION[stop.state] or "", stop.name))
+    f.title:SetText(("%d. %s%s: %s"):format(number, ns.Widgets.StateTag(stop.state), ACTION[stop.state] or "", stop.name))
     local zone = ns.Pos.MapName(point.zone or point.uiMapId) or ""
     f.where:SetText(point.inside and (point.inside .. " entrance, " .. zone) or zone)
 
