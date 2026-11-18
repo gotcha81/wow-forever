@@ -339,8 +339,17 @@ local function RowTooltip(row)
         end
         GameTooltip:AddLine(("%d %s on the map"):format(#n.points, #n.points == 1 and "place" or "places"), 0.8, 0.8, 0.8)
         if n.nearest and n.nearest.inside then GameTooltip:AddLine("Inside " .. n.nearest.inside, 0.8, 0.8, 0.8) end
-        GameTooltip:AddLine(ns.NpcFinder.WowheadUrl(n.id), 0.6, 0.85, 1)
-        GameTooltip:AddLine("Click: mark on the map  ·  Shift-click: Wowhead link to copy", 0.5, 0.5, 0.5, true)
+        local sources = {}
+        for _, p in ipairs(n.points) do
+            if p.source and not sources[p.source] then
+                sources[p.source] = true
+                GameTooltip:AddLine("Position: " .. p.source, 0.8, 0.8, 0.8)
+            end
+        end
+        local url = ns.NpcFinder.WowheadUrl(n.id)
+        if url then GameTooltip:AddLine(url, 0.6, 0.85, 1) end
+        GameTooltip:AddLine(url and "Click: mark on the map  ·  Shift-click: Wowhead link to copy"
+            or "Click: mark on the map", 0.5, 0.5, 0.5, true)
     elseif item.npcMarked then
         local stop = item.npcMarked
         GameTooltip:SetText(stop.name, 0.4, 1, 0.4)
@@ -829,7 +838,8 @@ function L:FillNpc(row, n)
     if nearest and nearest.inside then where = nearest.inside .. ", " .. where end
     local places = #n.points > 1 and ("  ·  %d places"):format(#n.points) or ""
     row.line2:SetText(where .. (yards and ("  ·  %d yd"):format(yards) or "") .. places)
-    row.line3:SetText("|cff808080Click: mark on the map  ·  Shift-click: Wowhead link|r")
+    local source = nearest and nearest.source and ("Position: " .. nearest.source .. "  ·  ") or ""
+    row.line3:SetText("|cff808080" .. source .. "click: mark on the map|r")
     local marked = ns.NpcFinder.stop
     if marked and marked.npcId == n.id then
         row.badge:Show()
@@ -848,6 +858,7 @@ function L:NpcItems(items)
     if not text or text == "" then
         items[#items + 1] = { message = "|cff808080Type a name, a title (flight master, innkeeper,|r" }
         items[#items + 1] = { message = "|cff808080weapon trainer ...) or a zone in the box above.|r" }
+        items[#items + 1] = { message = "|cff808080Own coordinates: /fqln pin [zone] x y [name]|r" }
         return
     end
     if not F.ready then

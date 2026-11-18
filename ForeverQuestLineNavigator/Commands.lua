@@ -114,6 +114,7 @@ local function Help()
     print("  /fqln lock|unlock arrow|window  - pin or free a position (or use the padlocks)")
     print("  /fqln d [name]  - the Dungeon tab (optionally pick a dungeon by name)")
     print("  /fqln npc [name]  - the NPCs tab: find a friendly NPC and mark it on the map")
+    print("  /fqln pin [zone] x y [name]  - mark your own coordinates (e.g. from Wowhead)")
     print("  /fqln unmark  - remove the NPC marker")
     print("  /fqln dungeoncheck on|off  - list missing quests when you enter a dungeon")
     print("  /fqln nearby on|off  - the Nearby quest targets window")
@@ -141,6 +142,8 @@ local function Status()
         local t = TOGGLES[name]
         print(("  %s: %s"):format(t.label, OnOff(db[t.key])))
     end
+    print(("  NPC positions: %d NPCs learned by playing, %d flight points from the game"):format(
+        ns.NpcSources:LearnedCount(), #ns.NpcSources:FlightNodes()))
     local wantedCount = 0
     for _ in pairs(ns.Nearby.wanted) do wantedCount = wantedCount + 1 end
     print(("  Nearby: %s, looking for %d NPCs, combat log %s"):format(OnOff(db.nearby.shown), wantedCount,
@@ -154,6 +157,7 @@ SLASH_FOREVERQUESTLINENAVIGATOR1 = "/fqln"
 local function SlashCommand(input)
     if not ns.db then return end
     local cmd, arg = (input or ""):lower():match("^%s*(%S*)%s*(.-)%s*$")
+    local rawArg = (input or ""):match("^%s*%S*%s*(.-)%s*$") or "" -- as typed (names keep their capitals)
     local db = ns.db
 
     if cmd == "" then
@@ -202,7 +206,14 @@ local function SlashCommand(input)
         db.list.tab = "npc"
         ns.List.picking = false
         ns.List:SetShown(true)
-        if arg ~= "" then ns.List.searchBox:SetText(arg) end
+        if rawArg ~= "" then ns.List.searchBox:SetText(rawArg) end
+    elseif cmd == "pin" then
+        local map, x, y, name = ns.NpcSources:ParsePin(rawArg)
+        if not map then
+            ns.Print(x)
+        else
+            ns.NpcFinder:MarkManual(map, x, y, name, db.list.npcKeep)
+        end
     elseif cmd == "unmark" then
         if ns.NpcFinder.stop then ns.NpcFinder:Unmark() else ns.Print("no NPC is marked.") end
     elseif cmd == "nearby" then

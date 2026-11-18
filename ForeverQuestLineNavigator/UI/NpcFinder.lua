@@ -1,11 +1,12 @@
--- NPC finder (the "NPCs" tab): search friendly NPCs (vendors, trainers, flight
--- masters, quest givers ...) and mark one on the world map and minimap, with
--- the blue arrow pointing at the nearest place it stands.
+-- NPC finder (the "NPCs" tab): search friendly and neutral NPCs (vendors,
+-- trainers, flight masters, quest givers ...) and mark one on the world map and
+-- minimap, with the blue arrow pointing at the nearest place it stands.
 --
--- Data: QuestieDB's NPC data (name, title, level, spawns; Questie keeps a
--- Forever correction file for it). Wowhead is not read: addons cannot go online,
--- and Wowhead does not allow automated collecting of its pages. Each NPC has its
--- Wowhead (Forever) address so you can look it up yourself (shift-click).
+-- Positions come from Sources/NpcSources.lua: spots you learned by playing, the
+-- game's flight data, QuestieDB (spawns and walking paths) and coordinates you
+-- type (/fqln pin). Wowhead is not read: addons cannot go online, and Wowhead
+-- does not allow automated collecting of its pages. Each NPC has its Wowhead
+-- (Forever) address so you can look it up yourself (shift-click).
 --
 -- The marker goes away when you mark another NPC, press Esc, remove it (the x,
 -- right-click), or talk to that NPC. "Keep pinned" keeps it through Esc and
@@ -17,26 +18,33 @@ local HBDPins = LibStub("HereBeDragons-Pins-2.0")
 local PIN_TEXTURE = "Interface\\AddOns\\" .. ADDON_NAME .. "\\Media\\Pin"
 local PIN_REF = ADDON_NAME .. "-npc" -- own pin set, so the route pins never remove these
 
-local F = { ready = false, building = false, texts = {}, ids = {}, waiting = {}, world = {}, minimap = {} }
+local F = { ready = false, building = false, texts = {}, ids = {}, waiting = {}, world = {}, minimap = {},
+            dotsWorld = {}, dotsMini = {} }
 ns.NpcFinder = F
 
 local MAX_RESULTS = 60
 local MAX_PINS = 40
+local MAX_PATH_DOTS = 120
 local WOWHEAD = "https://www.wowhead.com/forever/npc=%d"
 
 ---------------------------------------------------------------------------------------
--- Which NPCs: friendly to your faction (Questie: "A", "H" or "AH")
+-- NPC info
 ---------------------------------------------------------------------------------------
 
-local function FactionLetter()
-    local faction = UnitFactionGroup("player")
-    if faction == "Horde" then return "H" end
-    if faction == "Alliance" then return "A" end
-end
-
+-- { id, name, sub, minLevel, maxLevel } from Questie, else what you learned, else
+-- a flight point (negative id).
 function F:Info(id)
+    local Src = ns.NpcSources
+    if id < 0 then
+        for _, node in ipairs(Src:FlightNodes()) do
+            if node.id == -id then return { id = id, name = node.name, sub = "Flight point", flightPoint = true } end
+        end
+        return nil
+    end
     local Q = ns.QuestieSource
     local name = Q:Npc(id, "name")
+    local learned = Src:Learned(id)
+    if type(name) ~= "string" then name = learned and learned.n end
     if type(name) ~= "string" then return nil end
     local sub = Q:Npc(id, "subName")
     local minLevel, maxLevel = Q:Npc(id, "minLevel"), Q:Npc(id, "maxLevel")
@@ -45,48 +53,102 @@ function F:Info(id)
              maxLevel = type(maxLevel) == "number" and maxLevel or nil }
 end
 
--- Search index: lowercased "name / title / zone" per NPC, built the first time you search.
+---------------------------------------------------------------------------------------
+-- Search index
+---------------------------------------------------------------------------------------
+
+local zoneNames = {}
+local function ZoneName(area)
+    if zoneNames[area] == nil then
+        local map = ns.QuestieSource:UiMapForArea(area)
+        local info = map and C_Map.GetMapInfo(map)
+        zoneNames[area] = info and info.name or false
+    end
+    return zoneNames[area] or nil
+end
+
+-- Searchable text of one NPC (name, title, zones; flight point names for flight masters).
+local function IndexText(id)
+    local info = F:Info(id)
+    if not info then return nil end
+    local parts = { info.name }
+    if info.sub then parts[#parts + 1] = info.sub end
+    local spawns = id > 0 and ns.QuestieSource:Npc(id, "spawns")
+    if type(spawns) == "table" then
+        for area in pairs(spawns) do parts[#parts + 1] = ZoneName(area) end
+    end
+    local learned = id > 0 and ns.NpcSources:Learned(id)
+    if learned then
+        for _, spot in ipairs(learned.s) do parts[#parts + 1] = ns.Pos.MapName(ns.Pos.Zone(spot[1])) end
+    end
+    if id < 0 then
+        local p = ns.NpcSources:Points(id)[1]
+        parts[#parts + 1] = "flight master flight path"
+        if p then parts[#parts + 1] = ns.Pos.MapName(p.zone) end
+    end
+    local clean = {}
+    for _, p in ipairs(parts) do if type(p) == "string" then clean[#clean + 1] = p end end
+    return table.concat(clean, "\n"):lower()
+end
+
+local function Add(texts, ids, id)
+    if texts[id] then return end
+    local text = IndexText(id)
+    if text then
+        texts[id] = text
+        ids[#ids + 1] = id
+    end
+end
+
 function F:Build(onDone)
     if self.ready then onDone(); return end
     self.waiting[#self.waiting + 1] = onDone
     if self.building then return end
     self.building = true
 
-    local Q = ns.QuestieSource
-    local letter = FactionLetter()
-    local texts, ids, zoneNames = {}, {}, {}
-
-    local function ZoneName(area)
-        if zoneNames[area] == nil then
-            local map = Q:UiMapForArea(area)
-            local info = map and C_Map.GetMapInfo(map)
-            zoneNames[area] = info and info.name or false
-        end
-        return zoneNames[area] or nil
-    end
+    local Q, Src = ns.QuestieSource, ns.NpcSources
+    local letter = Src.FactionLetter()
+    local texts, ids = {}, {}
 
     local function Scan()
         local ok, all = pcall(Q.lib.Npc.GetAllIds)
         if not ok or type(all) ~= "table" then all = {} end
+        local flightMasterPoints = {}
         for index = 1, #all do
             local id = all[index]
             local friendly = Q:Npc(id, "friendlyToFaction")
-            if letter and type(friendly) == "string" and friendly:find(letter, 1, true) then
+            local learned = Src:Learned(id)
+            local ours = letter and ((type(friendly) == "string" and friendly:find(letter, 1, true))
+                or (learned and (learned.f or ""):find(letter, 1, true)))
+            if ours then
                 local spawns = Q:Npc(id, "spawns")
-                local name = Q:Npc(id, "name")
-                if type(name) == "string" and type(spawns) == "table" and next(spawns) then
-                    local parts = { name }
-                    local sub = Q:Npc(id, "subName")
-                    if type(sub) == "string" then parts[#parts + 1] = sub end
-                    for area in pairs(spawns) do
-                        local zone = ZoneName(area)
-                        if zone then parts[#parts + 1] = zone end
-                    end
-                    texts[id] = table.concat(parts, "\n"):lower()
-                    ids[#ids + 1] = id
+                if (type(spawns) == "table" and next(spawns)) or learned then
+                    Add(texts, ids, id)
+                    if Src.IsFlightMaster(id) then flightMasterPoints[#flightMasterPoints + 1] = id end
                 end
             end
             if index % 250 == 0 then coroutine.yield() end
+        end
+        -- NPCs you met that Questie does not know
+        for id, learned in pairs(ns.db.npcSpots or {}) do
+            if type(id) == "number" and letter and (learned.f or ""):find(letter, 1, true) then Add(texts, ids, id) end
+        end
+        coroutine.yield()
+        -- flight points: the flight master's entry gets the point's name; points
+        -- without a known flight master get their own entry
+        local matched = {}
+        for _, id in ipairs(flightMasterPoints) do
+            for _, p in ipairs(Src:Points(id)) do
+                if p.flight then
+                    texts[id] = texts[id] .. "\n" .. p.flight:lower() .. "\nflight path"
+                    for _, node in ipairs(Src:FlightNodes()) do
+                        if node.name == p.flight then matched[node.id] = true end
+                    end
+                end
+            end
+        end
+        for _, node in ipairs(Src:UsableFlightNodes()) do
+            if not matched[node.id] then Add(texts, ids, -node.id) end
         end
     end
 
@@ -110,12 +172,20 @@ function F:Build(onDone)
     end)
 end
 
--- Nearest spawn point to you (and its distance in yards, if the game tells us).
+-- A newly met NPC becomes searchable at once.
+function F:OnLearned(id)
+    if self.ready then
+        Add(self.texts, self.ids, id)
+        self.cache = nil
+    end
+end
+
+-- Nearest point to you (and its distance in yards, if the game tells us).
 local function Nearest(points)
     local px, py, instance = ns.Pos.Player()
     local best, bestDistance
     for _, point in ipairs(points) do
-        local d = px and (not instance or not point.instance or point.instance == instance)
+        local d = px and point.wx and (not instance or not point.instance or point.instance == instance)
             and ns.Pos.Distance(px, py, point.wx, point.wy)
         if d and (not bestDistance or d < bestDistance) then best, bestDistance = point, d end
     end
@@ -123,7 +193,7 @@ local function Nearest(points)
 end
 F.Nearest = Nearest
 
--- Results: { list = { npc info + points, nearest, distance, zone }, total = n }
+-- Results: { list = { npc info + points, nearest, distance }, total = n }
 -- Every word must match. Nearest NPCs first, then the rest by name.
 local MAX_LOOKED_AT = 400 -- matches whose map positions are worked out (for "nearest first")
 
@@ -154,10 +224,8 @@ function F:Find(query)
     for _, id in ipairs(matches) do
         local info = self:Info(id)
         if info then
-            info.points = ns.Planner:NpcPoints(id)
+            info.points = ns.NpcSources:Points(id)
             info.nearest, info.distance = Nearest(info.points)
-            local p = info.nearest
-            info.zone = p and ns.Pos.MapName(p.zone or p.uiMapId)
             result.list[#result.list + 1] = info
         end
     end
@@ -172,11 +240,12 @@ function F:Find(query)
     return result
 end
 
-function F.WowheadUrl(id) return WOWHEAD:format(id) end
+function F.WowheadUrl(id) return id and id > 0 and WOWHEAD:format(id) or nil end
 
 -- Put the Wowhead address in the chat box, where you can select and copy it (Ctrl+C).
 function F:ShareUrl(id)
     local url = self.WowheadUrl(id)
+    if not url then return end
     local open = ChatFrame_OpenChat or (ChatFrameUtil and ChatFrameUtil.OpenChat)
     local ok = open and pcall(open, url)
     if not ok then ns.Print(url) end
@@ -187,29 +256,54 @@ end
 ---------------------------------------------------------------------------------------
 
 -- The arrow treats the marked NPC like a stop: { npc = info, name, state = "npc", point }
-function F:Stop() return self.stop end
+local function SaveMark()
+    local stop = F.stop
+    if not (stop and F.keep) then ns.charDB.npcMark = nil; return end
+    if stop.npc.manual then
+        local p = stop.npc.points[1]
+        ns.charDB.npcMark = { manual = { p.uiMapId, p.x, p.y, stop.name } }
+    else
+        ns.charDB.npcMark = { id = stop.npcId }
+    end
+end
 
-function F:Mark(id, keep)
-    local info = self:Info(id)
-    if not info then return end
-    info.points = ns.Planner:NpcPoints(id)
+function F:MarkInfo(info, keep)
     if #info.points == 0 then
         ns.Print(("no map position known for %s."):format(info.name))
         return
     end
     info.nearest = Nearest(info.points)
-    self.stop = { npc = info, npcId = id, name = info.name, state = "npc", point = info.nearest, external = true }
+    self.stop = { npc = info, npcId = info.id, name = info.name, state = "npc", point = info.nearest, external = true }
     self.arrowOff = false
     self.keep = keep and true or false
-    ns.charDB.npcMark = self.keep and { id = id } or nil
+    SaveMark()
     self:Apply()
+end
+
+function F:Mark(id, keep)
+    local info = self:Info(id)
+    if not info then return end
+    info.points = ns.NpcSources:Points(id)
+    self:MarkInfo(info, keep)
+end
+
+-- A marker at typed coordinates (uiMapId, x and y 0-1).
+function F:MarkManual(uiMapId, x, y, name, keep)
+    local point = ns.NpcSources.MakePoint(uiMapId, x, y, "your coordinates")
+    if not point then
+        ns.Print("that map position cannot be shown.")
+        return
+    end
+    self:MarkInfo({ name = name, manual = true, points = { point } }, keep)
+    ns.Print(("marked %s at %.1f, %.1f in %s."):format(name, x * 100, y * 100,
+        ns.Pos.MapName(uiMapId) or "that zone"))
 end
 
 function F:Unmark(quiet)
     if not self.stop then return end
     local name = self.stop.name
     self.stop, self.keep = nil, false
-    ns.charDB.npcMark = nil
+    SaveMark()
     self:Apply()
     if not quiet then ns.Print(("marker for %s removed."):format(name)) end
 end
@@ -217,7 +311,7 @@ end
 function F:SetKeep(keep)
     if not self.stop then return end
     self.keep = keep and true or false
-    ns.charDB.npcMark = self.keep and { id = self.stop.npcId } or nil
+    SaveMark()
     self:Apply()
 end
 
@@ -236,7 +330,10 @@ local function PinTooltip(pin)
     GameTooltip:SetOwner(pin, "ANCHOR_RIGHT")
     GameTooltip:SetText(stop.name, 0.4, 1, 0.4)
     if stop.npc.sub then GameTooltip:AddLine("<" .. stop.npc.sub .. ">", 1, 1, 1) end
-    if pin.point and pin.point.inside then GameTooltip:AddLine("Inside " .. pin.point.inside, 0.8, 0.8, 0.8) end
+    local p = pin.point
+    if p and p.flight then GameTooltip:AddLine("Flight point: " .. p.flight, 0.6, 0.85, 1) end
+    if p and p.inside then GameTooltip:AddLine("Inside " .. p.inside, 0.8, 0.8, 0.8) end
+    if p and p.source then GameTooltip:AddLine("Position: " .. p.source, 0.8, 0.8, 0.8) end
     GameTooltip:AddLine(F.keep and "Kept until you talk to this NPC" or "Marked NPC (Esc removes it)", 0.8, 0.8, 0.8)
     GameTooltip:AddLine("Click: point the arrow here  ·  Right-click: remove", 0.5, 0.5, 0.5)
     GameTooltip:Show()
@@ -248,7 +345,7 @@ local function MakePin(size)
     local tex = pin:CreateTexture(nil, "ARTWORK")
     tex:SetAllPoints()
     tex:SetTexture(PIN_TEXTURE)
-    tex:SetVertexColor(0.35, 1, 0.35)
+    pin.tex = tex
     pin.label = pin:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     pin.label:SetPoint("CENTER", 0, 0)
     pin.label:SetText("!")
@@ -260,30 +357,65 @@ local function MakePin(size)
         if F.stop and self.point then
             F.arrowOff = false
             F.stop.point = self.point
-            F.stop.chosen = true -- you picked this spawn: keep pointing at it
+            F.stop.chosen = true -- you picked this spot: keep pointing at it
             ns.Arrow:SetTarget(ns.Planner.route[1])
         end
     end))
     return pin
 end
 
+-- Rough spots are paler, so you can tell them from known ones.
+local function TintPin(pin, point)
+    local rough = point.source and point.source:find("rough", 1, true)
+    pin.tex:SetVertexColor(rough and 0.6 or 0.35, rough and 0.8 or 1, rough and 0.6 or 0.35)
+    pin:SetAlpha(rough and 0.7 or 1)
+end
+
+local function MakeDot(size)
+    local dot = CreateFrame("Frame", nil, UIParent)
+    dot:SetSize(size, size)
+    local tex = dot:CreateTexture(nil, "ARTWORK")
+    tex:SetAllPoints()
+    tex:SetColorTexture(0.35, 1, 0.35, 0.75)
+    dot:EnableMouse(false)
+    return dot
+end
+
 function F:UpdatePins()
     pcall(HBDPins.RemoveAllWorldMapIcons, HBDPins, PIN_REF)
     pcall(HBDPins.RemoveAllMinimapIcons, HBDPins, PIN_REF)
     for _, pin in ipairs(self.minimap) do pin:Hide() end
+    for _, dot in ipairs(self.dotsMini) do dot:Hide() end
     local stop = self.stop
     if not stop then return end
     local minimapPins = not IsInInstance()
     local showFlag = HBD_PINS_WORLDMAP_SHOW_CONTINENT or 2
+
+    -- walking path (NPCs that move around): small dots under the pins
+    if stop.npcId and stop.npcId > 0 then
+        for i, d in ipairs(ns.NpcSources:PathDots(stop.npcId, MAX_PATH_DOTS)) do
+            local world = self.dotsWorld[i] or MakeDot(4)
+            self.dotsWorld[i] = world
+            pcall(HBDPins.AddWorldMapIconMap, HBDPins, PIN_REF, world, d[1], d[2], d[3], showFlag)
+            if minimapPins then
+                local mini = self.dotsMini[i] or MakeDot(3)
+                self.dotsMini[i] = mini
+                pcall(HBDPins.AddMinimapIconMap, HBDPins, PIN_REF, mini, d[1], d[2], d[3], true, false)
+            end
+        end
+    end
+
     for i, p in ipairs(stop.npc.points) do
         if i > MAX_PINS then break end
         if type(p.uiMapId) == "number" and type(p.x) == "number" and type(p.y) == "number" then
             local world = self.world[i] or MakePin(22)
             self.world[i], world.point = world, p
+            TintPin(world, p)
             pcall(HBDPins.AddWorldMapIconMap, HBDPins, PIN_REF, world, p.uiMapId, p.x, p.y, showFlag)
             if minimapPins then
                 local mini = self.minimap[i] or MakePin(16)
                 self.minimap[i], mini.point = mini, p
+                TintPin(mini, p)
                 pcall(HBDPins.AddMinimapIconMap, HBDPins, PIN_REF, mini, p.uiMapId, p.x, p.y, true, true)
             end
         end
@@ -291,7 +423,7 @@ function F:UpdatePins()
 end
 
 ---------------------------------------------------------------------------------------
--- Setup: Esc, talking to the NPC, the kept marker after /reload
+-- Setup: Esc, talking to NPCs (learn + remove the marker), the kept marker
 ---------------------------------------------------------------------------------------
 
 -- Events that mean you are talking to an NPC (not all exist on every client).
@@ -299,11 +431,13 @@ local TALK_EVENTS = { "GOSSIP_SHOW", "MERCHANT_SHOW", "QUEST_GREETING", "QUEST_D
                       "QUEST_COMPLETE", "TRAINER_SHOW", "TAXIMAP_OPENED", "BANKFRAME_OPENED",
                       "PET_STABLE_SHOW", "AUCTION_HOUSE_SHOW", "CONFIRM_BINDER", "GUILDBANKFRAME_OPENED" }
 
-local function NpcIdOf(unit)
-    local guid = UnitGUID(unit)
-    if guid == nil or (issecretvalue and issecretvalue(guid)) or type(guid) ~= "string" then return nil end
-    local kind, _, _, _, _, id = strsplit("-", guid)
-    if kind == "Creature" then return tonumber(id) end
+local function IsMarked(unit)
+    local stop = F.stop
+    if not stop then return false end
+    if stop.npcId and stop.npcId > 0 then return ns.NpcSources.NpcIdOf(unit) == stop.npcId end
+    local name = UnitName(unit)
+    if name == nil or (issecretvalue and issecretvalue(name)) or type(name) ~= "string" then return false end
+    return name:lower() == stop.name:lower() -- a flight point or typed marker: by name
 end
 
 function F:Create()
@@ -323,20 +457,24 @@ function F:Create()
 
     local events = CreateFrame("Frame")
     for _, e in ipairs(TALK_EVENTS) do pcall(events.RegisterEvent, events, e) end
-    pcall(events.RegisterEvent, events, "ZONE_CHANGED_NEW_AREA")
+    for _, e in ipairs({ "ZONE_CHANGED_NEW_AREA", "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT" }) do
+        pcall(events.RegisterEvent, events, e)
+    end
     events:SetScript("OnEvent", ns.Safe("npc marker events", function(_, event)
-        if not F.stop then return end
         if event == "ZONE_CHANGED_NEW_AREA" then
-            F:UpdatePins() -- minimap pins are left out inside instances
+            if F.stop then F:UpdatePins() end -- minimap pins are left out inside instances
             return
         end
-        if NpcIdOf("npc") == F.stop.npcId then
+        if event == "PLAYER_TARGET_CHANGED" then ns.NpcSources:Learn("target", "rough"); return end
+        if event == "UPDATE_MOUSEOVER_UNIT" then ns.NpcSources:Learn("mouseover", "rough"); return end
+        ns.NpcSources:Learn("npc", "exact")
+        if IsMarked("npc") then
             ns.Print(("found %s, marker removed."):format(F.stop.name))
             F:Unmark(true)
         end
     end))
 
-    -- the arrow follows the nearest spawn as you move (unless you clicked a pin)
+    -- the arrow follows the nearest spot as you move (unless you clicked a pin)
     C_Timer.NewTicker(2, ns.Safe("npc marker", function()
         local stop = F.stop
         if stop and not stop.chosen and #stop.npc.points > 1 then
@@ -352,7 +490,11 @@ end
 -- After the data is ready: bring back a kept marker.
 function F:Restore()
     local saved = ns.charDB.npcMark
-    if type(saved) == "table" and type(saved.id) == "number" and not self.stop then
+    if type(saved) ~= "table" or self.stop then return end
+    if type(saved.id) == "number" then
         self:Mark(saved.id, true)
+    elseif type(saved.manual) == "table" then
+        local m = saved.manual
+        self:MarkManual(m[1], m[2], m[3], m[4] or "Map marker", true)
     end
 end

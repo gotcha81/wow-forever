@@ -27,8 +27,16 @@ Copy the `ForeverQuestLineNavigator` folder into `World of Warcraft\_forever_\In
   Click one to mark every place it stands on the world map and minimap (green pins), with the arrow
   pointing at the nearest. Esc, the x, right-click or marking another NPC removes the marker, and it
   goes by itself when you talk to that NPC. "Keep pinned" keeps it through Esc and /reload.
-  Shift-click puts the NPC's Wowhead (Forever) address in the chat box to copy. Data comes from
-  QuestieDB; Wowhead is not read by the addon (`/fqln npc [name]`, `/fqln unmark`).
+  Shift-click puts the NPC's Wowhead (Forever) address in the chat box to copy (`/fqln npc [name]`,
+  `/fqln unmark`). Positions, best first:
+  - **learned by playing** (all your characters): where you stand when you talk to an NPC (exact),
+    or target / mouse over a friendly or neutral NPC close by (rough, paler pin, only when nothing
+    better is known). NPCs Questie does not know become searchable this way too;
+  - **the game's own flight data** for flight masters and flight points;
+  - **QuestieDB** spawns, plus small dots along the walking path of NPCs that move around;
+  - **your own coordinates**: `/fqln pin [zone] x y [name]`, e.g. `/fqln pin Orgrimmar 32.2 37.8 Thrall`
+    (Wowhead's "[32.2, 37.8]" style works too).
+  Wowhead is never read by the addon.
 - **Nearby quest targets**: a small window lists the quest mobs and NPCs close to you (to kill, drop a
   quest item, turn in to, or give the arrow's quest), with a click to target them. It finds them by
   nameplates (V key), target, mouseover and combat. Settings: on/off and "also inside dungeons".
