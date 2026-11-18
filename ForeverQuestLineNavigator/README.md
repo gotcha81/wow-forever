@@ -3,7 +3,7 @@
 A WoW Forever addon that shows the dungeon quest chains for your level, in pickup
 order, with numbered map pins and a blue arrow to the next stop.
 
-**Status:** first draft (0.2.0), focused on Horde. It is being tested on level 35 characters.
+**Status:** first draft (0.3.0), focused on Horde. It is being tested on level 35 characters.
 
 ## Needs
 - **Required:** [Questie](https://www.curseforge.com/wow/addons/questie) and its QuestieDB (Forever versions).
@@ -18,6 +18,14 @@ Copy the `ForeverQuestLineNavigator` folder into `World of Warcraft\_forever_\In
 - `/fqln status`: shows what the addon is using right now.
 - Click a quest in the list, or a pin on the map, to point the arrow at it.
 - Hover the arrow for a padlock (pin it in place) and a cogwheel (settings). Right-click it to hide it.
+- **Dungeon tab** (`/fqln d`, or `/fqln d <name>`): pick a dungeon to see all its quests: done, on it,
+  or what you are missing in the chain and where that starts. Grey quests are hidden unless what follows
+  gives at least 35% of a level.
+- Right-click a quest to **ignore** its questline (saved per character). Ignored ones are listed at the
+  bottom of the Route tab; right-click there to bring them back.
+- Optional (Settings, off by default): when you enter a dungeon, chat lists the quests for it you could have
+  picked up but don't have.
+- `/fqln errors`: the addon's error log in a copy window (`/fqln errors clear` empties it).
 - The quest window has a padlock, a cogwheel and a minimize button. Minimized, it shows only your next stop.
 - Settings (cogwheel) has the text sizes for the arrow and the quest window, plus the on/off switches.
 - The QN minimap button: left-click opens the list, right-click turns the arrow on or off.

@@ -24,6 +24,7 @@ local P = {
     upcoming = {},     -- steps that unlock within a few levels
     notWorth = {},     -- stops that are too far away for what they give
     trivial = {},      -- lines that are grey and lead nowhere good
+    linesByQuest = {}, -- [questId] = { lines that contain it }
     catalogCount = 0,
 }
 ns.Planner = P
@@ -132,6 +133,10 @@ local function BlockedByExclusive(id)
     end
     return false
 end
+
+-- for the dungeon view
+P.IsDone, P.InLog, P.IsReadyToTurnIn = IsDone, InLog, IsReadyToTurnIn
+P.PrereqsDone, P.BlockedByExclusive = PrereqsDone, BlockedByExclusive
 
 ---------------------------------------------------------------------------------------
 -- Catalog and questlines (once at login, spread over frames)
@@ -340,6 +345,15 @@ function P:BuildCatalog(onDone)
             if not inner[line.id] then kept[#kept + 1] = line end
         end
         self.lines = kept
+        local byQuest = {}
+        for _, line in ipairs(kept) do
+            for _, id in ipairs(line.steps) do
+                local list = byQuest[id]
+                if not list then list = {}; byQuest[id] = list end
+                list[#list + 1] = line
+            end
+        end
+        self.linesByQuest = byQuest
     end
 
     local co = coroutine.create(Scan)
@@ -595,7 +609,7 @@ function P:Update()
 
     for _, line in ipairs(self.lines) do
         line.eval = nil -- no stale results from an earlier update
-        if (line.kind == "dungeon" or db.classQuests) and self:InReach(line, level) then
+        if (line.kind == "dungeon" or db.classQuests) and not ns.Ignore:Line(line) and self:InReach(line, level) then
             local eval = self:EvaluateLine(line, level, levelXP)
             if eval.status == "trivial" then
                 if eval.remaining > 0 and #eval.actionable > 0 then trivial[#trivial + 1] = line end
@@ -632,7 +646,7 @@ function P:Update()
         for i = 1, C_QuestLog.GetNumQuestLogEntries() do
             local info = C_QuestLog.GetInfo(i)
             local id = info and not info.isHeader and info.questID
-            if id and id > 0 then
+            if id and id > 0 and not ns.Ignore:Hidden(id) then
                 local state = IsReadyToTurnIn(id) and "turnin" or "progress"
                 if not byKey[id .. ":" .. state] then
                     local stop = AddStop(id, state, nil, nil)
@@ -652,7 +666,7 @@ function P:Update()
     end
     for zone in pairs(zonesToFill) do
         for _, id in ipairs(self.worldByZone[zone] or {}) do
-            if not IsDone(id) and not InLog(id) and not byKey[id .. ":pickup"]
+            if not IsDone(id) and not InLog(id) and not byKey[id .. ":pickup"] and not ns.Ignore:Hidden(id)
                 and not IsTrivial(self:QuestLevel(id), level) and self:RequiredLevel(id) <= level then
                 local flags = Q:Quest(id, "specialFlags")
                 if type(flags) ~= "number" then flags = 0 end

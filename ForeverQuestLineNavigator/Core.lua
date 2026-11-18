@@ -124,10 +124,17 @@ ns.defaults = {
     levelAhead   = 2,      -- list chains whose first step unlocks within this many levels
     boatWait     = 300,    -- seconds: "just missed it" wait for a boat or zeppelin
     maxStops     = 25,     -- numbered stops on the route
-    list   = { shown = true, locked = false, minimized = false, textSize = 12, point = { "RIGHT", "RIGHT", -80, 60 } },
-    collapsed = { notWorth = true, trivial = true }, -- list sections folded shut
+    dungeonCheck = false,  -- list missing quests in chat when you enter a dungeon
+    list   = { shown = true, locked = false, minimized = false, textSize = 12, tab = "route",
+               point = { "RIGHT", "RIGHT", -80, 60 } }, -- list.dungeon = the dungeon picked in the Dungeon tab
+    collapsed = { notWorth = true, trivial = true, ignored = true, dungeonDone = true, dungeonIgnored = true },
     arrowFrame = { locked = false, textSize = 12, point = { "TOP", "TOP", 0, -140 } },
     errorLog = {}, -- see the error log above
+}
+
+-- Per character (ForeverQuestLineNavigatorCharDB)
+ns.charDefaults = {
+    ignored = { lines = {}, quests = {} }, -- see Ignore.lua
 }
 
 local function ApplyDefaults(db, defaults)
@@ -177,6 +184,7 @@ local function Start()
         local dj = ns.DungeonJournalSource.available and "on" or "off"
         ns.Print(("ready. %d dungeon and class questlines found (DungeonJournal data: %s). Type /fqln for options.")
             :format(ns.Planner.catalogCount or 0, dj))
+        ns.DungeonView:CheckEntered()
     end))
 end
 Start = ns.Safe("start", Start)
@@ -194,12 +202,17 @@ local function TryRegister(frame, event)
     pcall(frame.RegisterEvent, frame, event)
 end
 
+local CheckEntered = ns.Safe("dungeon check", function() ns.DungeonView:CheckEntered() end)
+
 local function OnEvent(self, event, arg1, arg2)
     if event == "ADDON_LOADED" then
         if arg1 ~= ADDON_NAME then return end
         ForeverQuestLineNavigatorDB = ForeverQuestLineNavigatorDB or {}
         ApplyDefaults(ForeverQuestLineNavigatorDB, ns.defaults)
         ns.db = ForeverQuestLineNavigatorDB
+        ForeverQuestLineNavigatorCharDB = ForeverQuestLineNavigatorCharDB or {}
+        ApplyDefaults(ForeverQuestLineNavigatorCharDB, ns.charDefaults)
+        ns.charDB = ForeverQuestLineNavigatorCharDB
         -- errors caught before this point move into the saved log
         for _, e in ipairs(pendingErrors) do table.insert(ns.db.errorLog, e) end
         wipe(pendingErrors)
@@ -231,9 +244,10 @@ local function OnEvent(self, event, arg1, arg2)
             TryRegister(self, e)
         end
 
-    elseif event == "PLAYER_ENTERING_WORLD" then
+    elseif event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
         ns.Arrow:UpdateVisibility()
         ns.RequestRefresh(1)
+        C_Timer.After(3, CheckEntered) -- quest data settles a moment after loading
     elseif event == "PLAYER_LEVEL_UP" then
         ns.XP:Clear() -- quest XP depends on your level
         ns.RequestRefresh(0.5)

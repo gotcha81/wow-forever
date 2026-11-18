@@ -77,7 +77,7 @@ function S:Create()
     local db = ns.db
     local f = CreateFrame("Frame", "ForeverQuestLineNavigatorSettings", UIParent, "BackdropTemplate")
     self.frame = f
-    f:SetSize(WIDTH, 382)
+    f:SetSize(WIDTH, 440)
     f:SetPoint("CENTER")
     f:SetFrameStrata("DIALOG")
     f:SetClampedToScreen(true)
@@ -128,9 +128,14 @@ function S:Create()
     Add(Checkbox(f, "Minimap button", -310, function() return db.minimap.shown end,
         function(v) ns.MinimapButton:SetShown(v) end))
 
+    Header(f, "Dungeons", -344)
+    Add(Checkbox(f, "Check quests when entering a dungeon", -362, function() return db.dungeonCheck end,
+        function(v) db.dungeonCheck = v end,
+        "When you enter a dungeon, list in chat the quests for it you could have picked up but don't have."))
+
     local hint = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     hint:SetPoint("BOTTOMLEFT", 14, 12)
-    hint:SetText("More settings will come here later.")
+    hint:SetText("Right-click a quest to ignore it. Ignored ones: bottom of the Route tab.")
 
     f:SetScript("OnShow", function() S:Refresh() end)
     f:Hide()

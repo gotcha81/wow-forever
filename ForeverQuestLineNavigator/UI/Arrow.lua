@@ -114,7 +114,13 @@ function A:SetTarget(defaultStop)
         for _, stop in ipairs(ns.Planner.route) do
             if stop.questId == pinned.questId and stop.state == pinned.state then found = stop; break end
         end
-        if found then target = found else self.pinned = nil end
+        if found then
+            target = found
+        elseif pinned.stop and ns.DungeonView:StillValid(pinned.stop) then
+            target = pinned.stop -- picked in the dungeon view, not on the route
+        else
+            self.pinned = nil
+        end
     end
     self.target = target
     self:UpdateVisibility()
@@ -122,7 +128,7 @@ end
 
 -- Point at a specific stop (clicked in the list or on a pin).
 function A:Pin(stop)
-    self.pinned = { questId = stop.questId, state = stop.state }
+    self.pinned = { questId = stop.questId, state = stop.state, stop = stop.external and stop or nil }
     self.target = stop
     self:UpdateVisibility()
     ns.Pins:Update()
@@ -151,9 +157,9 @@ function A:Tick()
     if not stop or not stop.point then f:Hide(); return end
     local point = stop.point
 
-    local number = 1
-    for i, s in ipairs(ns.Planner.route) do if s == stop then number = i; break end end
-    f.title:SetText(("%d. %s%s: %s"):format(number, ns.Widgets.StateTag(stop.state), ACTION[stop.state] or "", stop.name))
+    local number = ""
+    for i, s in ipairs(ns.Planner.route) do if s == stop then number = i .. ". "; break end end
+    f.title:SetText(("%s%s%s: %s"):format(number, ns.Widgets.StateTag(stop.state), ACTION[stop.state] or "", stop.name))
     local zone = ns.Pos.MapName(point.zone or point.uiMapId) or ""
     f.where:SetText(point.inside and (point.inside .. " entrance, " .. zone) or zone)
 

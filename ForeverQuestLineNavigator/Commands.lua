@@ -112,6 +112,8 @@ local function Help()
     print("  /fqln minimap on|off  - the QN minimap button")
     print("  /fqln arrowtext <8-24>  - text size under the arrow (now " .. ns.db.arrowFrame.textSize .. ")")
     print("  /fqln lock|unlock arrow|window  - pin or free a position (or use the padlocks)")
+    print("  /fqln d [name]  - the Dungeon tab (optionally pick a dungeon by name)")
+    print("  /fqln dungeoncheck on|off  - list missing quests when you enter a dungeon")
     print("  /fqln debug   - position / facing values (if the arrow does not turn)")
     print("  /fqln errors  - the error log (copy window); /fqln errors clear empties it")
     print("  /fqln riding auto|none|60|100  - riding speed (auto detects it)")
@@ -181,6 +183,19 @@ local function SlashCommand(input)
         else
             ns.Print(("use: /fqln %s <0-%d>"):format(cmd, max))
         end
+    elseif cmd == "d" then
+        db.list.tab = "dungeon"
+        if arg ~= "" then
+            local d = ns.DungeonView:Find(arg)
+            if d then db.list.dungeon = d.name else ns.Print("no dungeon found for \"" .. arg .. "\".") end
+        end
+        ns.List.picking = false
+        ns.List:SetShown(true)
+    elseif cmd == "dungeoncheck" then
+        if arg == "on" then db.dungeonCheck = true
+        elseif arg == "off" then db.dungeonCheck = false
+        else db.dungeonCheck = not db.dungeonCheck end
+        ns.Print("check quests when entering a dungeon: " .. OnOff(db.dungeonCheck))
     elseif cmd == "status" then
         Status()
     elseif cmd == "debug" then

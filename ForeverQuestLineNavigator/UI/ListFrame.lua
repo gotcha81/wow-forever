@@ -1,6 +1,9 @@
--- The quest list window.
--- Sections: Route (numbered), Not on the map, Unlocks soon, Not worth it right now,
--- Trivial. Click a section header to fold it. Click a route row to aim the arrow.
+-- The quest list window, two tabs:
+--  Route:   Route (numbered), Not on the map, Unlocks soon, Not worth it right now,
+--           Trivial, Ignored.
+--  Dungeon: pick a dungeon, see all its quests and what you are missing.
+-- Click a section header to fold it. Click a row to aim the arrow.
+-- Right-click a quest to ignore its questline (right-click in Ignored to bring it back).
 
 local ADDON_NAME, ns = ...
 
@@ -94,6 +97,32 @@ function L:Create()
         function(v) db.list.locked = v end, "The window")
     lock:SetPoint("RIGHT", cog, "LEFT", -6, 0)
 
+    -- Tabs, and the dungeon picker button (Dungeon tab only)
+    local function Tab(label, key)
+        local b = W.TextButton(f, 74, 18, label, label, function()
+            db.list.tab = key
+            L.picking = false
+            L:Update()
+        end)
+        b:SetScript("OnEnter", nil)
+        b:SetScript("OnLeave", nil)
+        return b
+    end
+    self.tabRoute = Tab("Route", "route")
+    self.tabRoute:SetPoint("TOPLEFT", 10, -32)
+    self.tabDungeon = Tab("Dungeon", "dungeon")
+    self.tabDungeon:SetPoint("LEFT", self.tabRoute, "RIGHT", 4, 0)
+    self.picker = W.TextButton(f, WIDTH - 196, 18, "", "Choose a dungeon", function()
+        L.picking = not L.picking
+        L:Update()
+    end)
+    self.picker:SetPoint("LEFT", self.tabDungeon, "RIGHT", 10, 0)
+    self.picker.label:ClearAllPoints()
+    self.picker.label:SetPoint("LEFT", 6, 0)
+    self.picker.label:SetPoint("RIGHT", -6, 0)
+    self.picker.label:SetJustifyH("LEFT")
+    self.picker.label:SetWordWrap(false)
+
     -- one line shown while minimized: the next stop
     self.mini = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     self.mini:SetPoint("TOPLEFT", 12, -34)
@@ -102,7 +131,7 @@ function L:Create()
     self.mini:SetWordWrap(false)
 
     local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", 8, -34)
+    scroll:SetPoint("TOPLEFT", 8, -56)
     scroll:SetPoint("BOTTOMRIGHT", -28, 10)
     local content = CreateFrame("Frame", nil, scroll)
     content:SetSize(WIDTH - 40, 10)
@@ -133,6 +162,9 @@ function L:SetMinimized(minimized)
     local f = self.frame
     self.scroll:SetShown(not minimized)
     self.mini:SetShown(minimized)
+    self.tabRoute:SetShown(not minimized)
+    self.tabDungeon:SetShown(not minimized)
+    self.picker:SetShown(not minimized and ns.db.list.tab == "dungeon")
     -- keep the title bar where it is: grow / shrink downwards
     local top, left = f:GetTop(), f:GetLeft()
     f:SetHeight(minimized and MINIMIZED_HEIGHT or HEIGHT)
@@ -208,6 +240,32 @@ local function RowTooltip(row)
         end
         if stop.primary then AddLineDetails(stop.primary.line, stop.primary.index) end
         if item.number then GameTooltip:AddLine("Click: point the arrow here", 0.5, 0.5, 0.5) end
+        GameTooltip:AddLine("Right-click: ignore this questline", 0.5, 0.5, 0.5)
+    elseif item.entry then
+        local e = item.entry
+        GameTooltip:SetText(e.name, 1, 1, 1)
+        GameTooltip:AddLine(L.EntryStatus(e), 1, 0.82, 0, true)
+        GameTooltip:AddLine(L.EntryXP(e), 1, 0.82, 0)
+        if e.line then AddLineDetails(e.line, e.lineIndex) end
+        if e.stop and e.stop.point then
+            if e.stop.point.inside then
+                GameTooltip:AddLine("Inside " .. e.stop.point.inside .. " (the arrow points to the entrance)", 0.8, 0.8, 0.8)
+            end
+            GameTooltip:AddLine("Click: point the arrow there", 0.5, 0.5, 0.5)
+        end
+        if e.state ~= "done" then
+            GameTooltip:AddLine(e.ignored and "Right-click: bring it back" or "Right-click: ignore this questline",
+                0.5, 0.5, 0.5)
+        end
+    elseif item.dungeonPick then
+        local d = item.dungeonPick
+        GameTooltip:SetText(d.name, 1, 1, 1)
+        GameTooltip:AddLine(("%d quests in total"):format(#d.quests), 0.8, 0.8, 0.8)
+        GameTooltip:AddLine("Click: show its quests", 0.5, 0.5, 0.5)
+    elseif item.ignoredEntry then
+        GameTooltip:SetText(tostring(item.ignoredEntry.name), 0.7, 0.7, 0.7)
+        GameTooltip:AddLine("Ignored on this character", 0.8, 0.8, 0.8)
+        GameTooltip:AddLine("Right-click: bring it back", 0.5, 0.5, 0.5)
     elseif item.upcoming then
         local u = item.upcoming
         GameTooltip:SetText(u.name, 1, 1, 1)
@@ -258,16 +316,39 @@ function L:GetRow(index)
 
     row:SetScript("OnEnter", ns.Safe("list tooltip", RowTooltip))
     row:SetScript("OnLeave", GameTooltip_Hide)
-    row:SetScript("OnClick", function(self)
+    row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    row:SetScript("OnClick", ns.Safe("list click", function(self, button)
         local item = self.item
         if not item then return end
+        if button == "RightButton" then
+            if item.stop then
+                ns.Ignore:AskIgnoreStop(item.stop)
+            elseif item.entry and item.entry.state ~= "done" then
+                if item.entry.ignored then
+                    ns.Ignore:RestoreQuest(item.entry.questId)
+                    ns.Print(('"%s" is back.'):format(item.entry.name))
+                    ns.RequestRefresh(0)
+                else
+                    ns.Ignore:AskIgnoreQuest(item.entry.questId)
+                end
+            elseif item.ignoredEntry then
+                ns.Ignore:AskRestore(item.ignoredEntry)
+            end
+            return
+        end
         if item.header then
             ns.db.collapsed[item.section] = not ns.db.collapsed[item.section]
             L:Update()
         elseif item.number then
             ns.Arrow:Pin(item.stop)
+        elseif item.entry and item.entry.stop and item.entry.stop.point then
+            ns.Arrow:Pin(item.entry.stop)
+        elseif item.dungeonPick then
+            ns.db.list.dungeon = item.dungeonPick.name
+            L.picking = false
+            L:Update()
         end
-    end)
+    end))
     self.rows[index] = row
     return row
 end
@@ -344,6 +425,42 @@ function L:Fill(row, item)
             local isTarget = ns.Arrow.target == stop
             row.badge:SetVertexColor(1, isTarget and 0.85 or 1, isTarget and 0.2 or 1)
         end
+    elseif item.entry then
+        local e = item.entry
+        local step = ""
+        if e.lineIndex and e.line then
+            step = (" |cff808080(%d/%d)|r"):format(e.lineIndex, #e.line.steps)
+        end
+        local grey = e.state == "done" or e.ignored
+        row.line1:SetText(LevelTag(e.level) .. L.EntryTag(e) .. (grey and ("|cff9d9d9d" .. e.name .. "|r") or e.name) .. step)
+        local status = L.EntryStatus(e)
+        local yards = e.stop and ns.Planner:DistanceTo(e.stop)
+        if yards then status = status .. ("  ·  %d yd"):format(yards) end
+        row.line2:SetText(status)
+        row.line3:SetText(L.EntryXP(e))
+        local target = ns.Arrow.target
+        if e.stop and target and target.questId == e.stop.questId and target.state == e.stop.state then
+            row.badge:Show()
+            row.badge:SetVertexColor(1, 0.85, 0.2)
+        end
+    elseif item.dungeonPick then
+        local d = item.dungeonPick
+        local range = ""
+        if d.min then
+            range = d.min == d.max and ("[%d]"):format(d.min) or ("[%d-%d]"):format(d.min, d.max)
+            local color = GetQuestDifficultyColor and GetQuestDifficultyColor(math.floor((d.min + d.max) / 2))
+            if color then range = ("|cff%02x%02x%02x%s|r"):format(color.r * 255, color.g * 255, color.b * 255, range) end
+        end
+        local selected = d.name == ns.db.list.dungeon and "|cff4da6ff> |r" or ""
+        row.line1:SetText(selected .. range .. " " .. d.name)
+        local open = ns.DungeonView:OpenCount(d)
+        local recommended = ns.Planner.recommended and ns.Planner.recommended[d.name]
+        row.line2:SetText((open > 0 and ("%d %s for you now"):format(open, open == 1 and "quest" or "quests")
+            or "nothing for you right now") .. (recommended and "  ·  |cff40ff40recommended|r" or ""))
+    elseif item.ignoredEntry then
+        local entry = item.ignoredEntry
+        row.line1:SetText("|cff9d9d9d" .. tostring(entry.name) .. "|r")
+        row.line2:SetText((entry.kind == "line" and "Ignored questline" or "Ignored quest") .. "  ·  right-click to bring it back")
     elseif item.upcoming then
         local u = item.upcoming
         row.line1:SetText(("|cff808080[%d]|r %s"):format(u.required, u.name))
@@ -369,6 +486,8 @@ function L:Update()
     local planner = ns.Planner
     local collapsed = ns.db.collapsed
     local items = {}
+    local tab = ns.db.list.tab == "dungeon" and "dungeon" or "route"
+    self:StyleTabs(tab)
 
     local function Section(key, title, list, make)
         if #list == 0 then return end
@@ -377,17 +496,27 @@ function L:Update()
         for i, entry in ipairs(list) do items[#items + 1] = make(entry, i) end
     end
 
+    if tab == "dungeon" then
+        self:DungeonItems(items, Section)
+        self:Layout(items)
+        return
+    end
+
     Section("route", "Route", planner.route, function(stop, i) return { stop = stop, number = i } end)
     Section("unlocated", "Not on the map", planner.unlocated, function(stop) return { stop = stop } end)
     Section("upcoming", "Unlocks soon", planner.upcoming, function(u) return { upcoming = u } end)
     Section("notWorth", "Not worth it right now", planner.notWorth, function(stop) return { stop = stop } end)
     Section("trivial", "Trivial (grey)", planner.trivial, function(line) return { line = line } end)
+    Section("ignored", "Ignored", ns.Ignore:List(), function(entry) return { ignoredEntry = entry } end)
 
     if #items == 0 then
         items[1] = { message = "No dungeon quests found for your level right now." }
         items[2] = { message = "|cff808080Try /fqln ahead 5 to look further ahead.|r" }
     end
+    self:Layout(items)
+end
 
+function L:Layout(items)
     local y = 0
     for i, item in ipairs(items) do
         local row = self:GetRow(i)
@@ -407,6 +536,99 @@ function L:UpdateDistances()
         return
     end
     for _, row in ipairs(self.rows) do
-        if row:IsShown() and row.item and row.item.stop then self:Fill(row, row.item) end
+        if row:IsShown() and row.item and (row.item.stop or row.item.entry) then self:Fill(row, row.item) end
     end
+end
+
+---------------------------------------------------------------------------------------
+-- Dungeon tab
+---------------------------------------------------------------------------------------
+
+function L:StyleTabs(tab)
+    for key, b in pairs({ route = self.tabRoute, dungeon = self.tabDungeon }) do
+        local on = key == tab
+        b:SetBackdropBorderColor(on and 0.3 or 0.25, on and 0.55 or 0.3, on and 0.9 or 0.4, 1)
+        b.label:SetTextColor(on and 1 or 0.6, on and 0.82 or 0.6, on and 0 or 0.6)
+    end
+    self.picker:SetShown(tab == "dungeon" and not ns.db.list.minimized)
+    local name = ns.db.list.dungeon
+    self.picker.label:SetText((self.picking and "|cff4da6ffChoose a dungeon:|r" or (name or "Choose a dungeon"))
+        .. "  |cff808080v|r")
+end
+
+local ENTRY_TAG = {
+    done        = "|cff40c040[Done]|r ",
+    chain       = "|cff4dc3ff[On the chain]|r ",
+    missing     = "|cffff9f40[Missing chain]|r ",
+    locked      = "|cff808080[Locked]|r ",
+    unavailable = "|cff808080[Not available]|r ",
+}
+
+function L.EntryTag(e)
+    if e.ignored then return "|cff808080[Ignored]|r " end
+    return ENTRY_TAG[e.state] or ns.Widgets.StateTag(e.state)
+end
+
+local function WhereStarts(e)
+    local zone = e.stop and e.stop.point and ns.Pos.MapName(e.stop.point.zone or e.stop.point.uiMapId)
+    local parts = {}
+    if e.starter then parts[#parts + 1] = e.starter end
+    if zone then parts[#parts + 1] = zone end
+    if #parts == 0 then return "start not on the map" end
+    return "starts at " .. table.concat(parts, ", ")
+end
+
+function L.EntryStatus(e)
+    if e.state == "done" then return "Done" end
+    if e.state == "turnin" then return "|cff40ff40Turn in|r" end
+    if e.state == "progress" then return "On this quest: do the objectives" end
+    if e.state == "chain" then
+        return ("On step %d of %d: %s"):format(e.missingIndex, e.chainLength, e.missingName)
+    end
+    if e.state == "pickup" then return "|cffffd100Pick up|r  ·  " .. WhereStarts(e) end
+    if e.state == "missing" then
+        return ("Missing: start with %s (step %d of %d)  ·  %s"):format(e.missingName, e.missingIndex,
+            e.chainLength, WhereStarts(e))
+    end
+    if e.state == "locked" then
+        if e.missingId and e.missingId ~= e.questId then
+            return ("Unlocks at level %d (first: %s, step %d of %d)"):format(e.required, e.missingName,
+                e.missingIndex, e.chainLength)
+        end
+        return ("Unlocks at level %d"):format(e.required)
+    end
+    if e.state == "unavailable" then return "Not available: you did or took a quest that excludes it" end
+    return ""
+end
+
+function L.EntryXP(e)
+    local fmt = ns.XP.Format
+    local text = "XP quest " .. (e.xpEstimate and "~" or "") .. fmt(e.xp)
+    if e.lineRemaining then
+        if e.lineStarted then
+            text = text .. (" (Questchain remaining %s)"):format(fmt(e.lineRemaining))
+        else
+            text = text .. (" (Total questchain %s)"):format(fmt(e.lineTotal))
+        end
+    end
+    return text
+end
+
+function L:DungeonItems(items, Section)
+    local DV = ns.DungeonView
+    local name = ns.db.list.dungeon
+    if self.picking or not name or not DV:Find(name) then
+        for _, d in ipairs(DV:Dungeons()) do items[#items + 1] = { dungeonPick = d } end
+        if #items == 0 then items[1] = { message = "No dungeon quests found." } end
+        return
+    end
+    local r = DV:Entries(name)
+    Section("dungeonOpen", "Quests", r.open, function(e) return { entry = e } end)
+    if #r.open == 0 then items[#items + 1] = { message = "Nothing open for you in this dungeon." } end
+    if r.greyHidden > 0 then
+        items[#items + 1] = { message = ("|cff808080%d grey %s hidden (not worth the XP)|r"):format(r.greyHidden,
+            r.greyHidden == 1 and "quest" or "quests") }
+    end
+    Section("dungeonDone", "Done", r.done, function(e) return { entry = e } end)
+    Section("dungeonIgnored", "Ignored", r.ignored, function(e) return { entry = e } end)
 end
