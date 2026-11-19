@@ -3,11 +3,12 @@
 A WoW Forever addon that shows the dungeon quest chains for your level, in pickup
 order, with numbered map pins (grey quests show on the maps only once they are in your quest log) and a blue arrow to the next stop.
 
-**Status:** first draft (0.3.0), focused on Horde. It is being tested on level 35 characters.
+**Status:** draft (0.9.0), focused on Horde. It is being tested on level 35 characters.
 
 ## Needs
 - **Required:** [Questie](https://www.curseforge.com/wow/addons/questie) and its QuestieDB (Forever versions).
-- **Optional:** DungeonJournal (ForeverDungeonJournal) gives better chain data. With OpenMap installed, the pins show on its seamless map.
+- **Optional:** DungeonJournal (ForeverDungeonJournal) gives better chain data. With OpenMap installed, the pins,
+  the route line and the quest markers show on its seamless map.
 
 ## Install
 Copy the `ForeverQuestLineNavigator` folder into `World of Warcraft\_forever_\Interface\AddOns\`.
@@ -17,6 +18,23 @@ Copy the `ForeverQuestLineNavigator` folder into `World of Warcraft\_forever_\In
 - `/fqln help`: all commands.
 - `/fqln status`: shows what the addon is using right now.
 - Click a quest in the list, or a pin on the map, to point the arrow at it.
+- **Route line** (0.9.0): on the world map (and OpenMap) a line runs from you to stop 1 (gold), then on
+  to 2, 3 ... (blue), under the numbered pins. A leg that changes continent is left out.
+  Settings > Map, or `/fqln line on|off`.
+- **Quest on the map** (0.9.0): clicking a quest in any tab also shows it on the world map, OpenMap and
+  the minimap with this addon's own markers (not Questie's): **S** = quest giver, **E** = turn-in,
+  small blue dots = objectives (mobs, objects, item drops, places to explore; finished objectives drop
+  out). One quest at a time: clicking another quest takes over; clicking the same quest again, Esc, or
+  turning it in removes them. An Esc that closes the world map leaves them; the next Esc removes them.
+  The row says "shown on the map".
+- **Quest log** (0.9.0): when the clicked quest is in your quest log, the game's quest log opens on it,
+  like Questie's tracker does, so the log shows whichever addon you clicked last. Not in combat, and not
+  in controller mode (it would taint the gamepad bindings). Both on/off in Settings > Map.
+- **Zone tab** (0.9.0, `/fqln z`, or `/fqln z <name>`): pick a zone to see every quest picked up there
+  (where the quest giver stands), with its state for you. **(MZ)** at the end of a name means the quest
+  itself spans more than one zone (giver, objectives and turn-in are not all in the same zone); hover it
+  for the zones. A dungeon counts as the zone its entrance is in. Grey quests are folded under a `+` row.
+  The tab follows you when you enter a new zone.
 - Hover the arrow for a padlock (pin it in place) and a cogwheel (settings). Right-click it to hide it.
 - **Dungeon tab** (`/fqln d`, or `/fqln d <name>`): pick a dungeon to see all its quests: done, on it,
   or what you are missing in the chain and where that starts. Grey quests are hidden unless what follows

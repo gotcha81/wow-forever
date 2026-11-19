@@ -5,6 +5,7 @@ local _, ns = ...
 local TOGGLES = {
     arrow   = { key = "arrow",        label = "Arrow" },
     pins    = { key = "pins",         label = "Map pins" },
+    line    = { key = "routeLine",    label = "Route line on the world map" },
     dungeon = { key = "dungeonFocus", label = "Dungeon focus" },
     class   = { key = "classQuests",  label = "Class quests" },
     travel  = { key = "travelTime",   label = "Travel time routing" },
@@ -108,16 +109,17 @@ local function OnOff(value) return value and "|cff40ff40on|r" or "|cffff5555off|
 local function Help()
     ns.Print("commands:")
     print("  /fqln  - show or hide the quest list")
-    print("  /fqln arrow|pins|dungeon|class|travel on|off")
+    print("  /fqln arrow|pins|line|dungeon|class|travel on|off")
     print("  /fqln minimap on|off  - the QN minimap button")
     print("  /fqln arrowtext <8-24>  - text size under the arrow (now " .. ns.db.arrowFrame.textSize .. ")")
     print("  /fqln lock|unlock arrow|window  - pin or free a position (or use the padlocks)")
     print("  /fqln d [name]  - the Dungeon tab (optionally pick a dungeon by name)")
+    print("  /fqln z [name]  - the Zone tab (optionally pick a zone by name)")
     print("  /fqln npc [name]  - the NPCs tab: find a friendly NPC and mark it on the map")
     print("  /fqln pin [zone] x y [name]  - mark your own coordinates (e.g. from Wowhead)")
     print("  /fqln unmark  - remove the NPC marker")
-    print("  /fqln killtime <s>  - seconds you take per quest mob (route timing, now " .. db.killSeconds .. ")")
-    print("  /fqln dungeontime <min>  - minutes per dungeon run (now " .. db.dungeonMinutes .. ")")
+    print("  /fqln killtime <s>  - seconds you take per quest mob (route timing, now " .. ns.db.killSeconds .. ")")
+    print("  /fqln dungeontime <min>  - minutes per dungeon run (now " .. ns.db.dungeonMinutes .. ")")
     print("  /fqln dungeoncheck on|off  - list missing quests when you enter a dungeon")
     print("  /fqln nearby on|off  - the Nearby quest targets window")
     print("  /fqln debug   - position / facing values (if the arrow does not turn)")
@@ -140,7 +142,7 @@ local function Status()
     print("  OpenMap: " .. (openMap and "|cff40ff40loaded|r (pins show on it)" or "not loaded (pins on Blizzard's map)"))
     local speed, how = ns.Planner:Riding()
     print(("  Riding: %s (%s)"):format(speed > 0 and (speed .. "%") or "none", how or ""))
-    for _, name in ipairs({ "dungeon", "class", "travel", "arrow", "pins" }) do
+    for _, name in ipairs({ "dungeon", "class", "travel", "arrow", "pins", "line" }) do
         local t = TOGGLES[name]
         print(("  %s: %s"):format(t.label, OnOff(db[t.key])))
     end
@@ -210,6 +212,17 @@ local function SlashCommand(input)
         end
         ns.List.picking = false
         ns.List:SetShown(true)
+    elseif cmd == "z" or cmd == "zone" then
+        db.list.tab = "zone"
+        ns.List.picking = false
+        ns.List:SetShown(true)
+        if arg ~= "" then
+            ns.ZoneView:Build(function()
+                local z = ns.ZoneView:Find(arg)
+                if z then db.list.zone = z.name else ns.Print("no zone found for \"" .. arg .. "\".") end
+                ns.List:Update()
+            end)
+        end
     elseif cmd == "npc" then
         db.list.tab = "npc"
         ns.List.picking = false

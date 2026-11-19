@@ -2,7 +2,7 @@
 
 All art is drawn from scratch here, so no third-party artwork is shipped.
 Usage:  python tools/make_textures.py <AddonFolder>
-Writes Arrow.tga, Pin.tga, Locked.tga, Unlocked.tga and Cog.tga to <AddonFolder>/Media/.
+Writes Arrow.tga, Pin.tga, Dot.tga, Locked.tga, Unlocked.tga and Cog.tga to <AddonFolder>/Media/.
 """
 import math
 import os
@@ -101,6 +101,24 @@ def make_pin(path, size=32):
     write_tga(path, size, rows)
 
 
+def make_dot(path, size=16):
+    """Small blue dot with a dark edge: quest objective spots on the maps."""
+    rows = []
+    for py in range(size):
+        row = []
+        for px in range(size):
+            def dist(x, y):
+                return math.hypot(x - 0.5, y - 0.5)
+            c_out = coverage(px, py, size, lambda x, y: dist(x, y) <= 0.46)
+            c_in = coverage(px, py, size, lambda x, y: dist(x, y) <= 0.34)
+            fill = (90, 175, 255, c_in)
+            edge = (10, 35, 90, c_out)
+            r, g, b, a = blend(fill, edge)
+            row.append((int(r), int(g), int(b), int(a * 255)))
+        rows.append(row)
+    write_tga(path, size, rows)
+
+
 def make_lock(path, opened, size=32):
     """Gold padlock. `opened` lifts the shackle and swings it to the right."""
     body = (0.20, 0.46, 0.80, 0.92)  # x0, y0, x1, y1 of the lock body
@@ -165,10 +183,11 @@ def main():
     os.makedirs(media, exist_ok=True)
     make_arrow(os.path.join(media, "Arrow.tga"))
     make_pin(os.path.join(media, "Pin.tga"))
+    make_dot(os.path.join(media, "Dot.tga"))
     make_lock(os.path.join(media, "Locked.tga"), opened=False)
     make_lock(os.path.join(media, "Unlocked.tga"), opened=True)
     make_cog(os.path.join(media, "Cog.tga"))
-    print("Wrote Arrow, Pin, Locked, Unlocked and Cog textures to", media)
+    print("Wrote Arrow, Pin, Dot, Locked, Unlocked and Cog textures to", media)
 
 
 if __name__ == "__main__":

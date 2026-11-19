@@ -1,9 +1,11 @@
--- The quest list window, three tabs:
+-- The quest list window, four tabs:
 --  Route:   Route (numbered), Not on the map, Unlocks soon, Not worth it right now,
 --           Trivial, Ignored.
 --  Dungeon: pick a dungeon, see all its quests and what you are missing.
+--  Zone:    pick a zone, see every quest picked up there; (MZ) = the quest spans zones.
 --  NPCs:    search friendly NPCs and mark one on the map (UI/NpcFinder.lua).
--- Click a section header to fold it. Click a row to aim the arrow.
+-- Click a section header to fold it. Click a quest to aim the arrow, show it on the
+-- map (UI/QuestMarkers.lua) and open the quest log on it; click it again to remove.
 -- Right-click a quest to ignore its questline (right-click in Ignored to bring it back).
 
 local ADDON_NAME, ns = ...
@@ -98,9 +100,9 @@ function L:Create()
         function(v) db.list.locked = v end, "The window")
     lock:SetPoint("RIGHT", cog, "LEFT", -6, 0)
 
-    -- Tabs, and the dungeon picker button (Dungeon tab only)
+    -- Tabs, and the dungeon / zone picker button (Dungeon and Zone tabs)
     local function Tab(label, key)
-        local b = W.TextButton(f, 64, 18, label, label, function()
+        local b = W.TextButton(f, 58, 18, label, label, function()
             db.list.tab = key
             L.picking = false
             L:Update()
@@ -113,9 +115,11 @@ function L:Create()
     self.tabRoute:SetPoint("TOPLEFT", 10, -32)
     self.tabDungeon = Tab("Dungeon", "dungeon")
     self.tabDungeon:SetPoint("LEFT", self.tabRoute, "RIGHT", 4, 0)
+    self.tabZone = Tab("Zone", "zone")
+    self.tabZone:SetPoint("LEFT", self.tabDungeon, "RIGHT", 4, 0)
     self.tabNpc = Tab("NPCs", "npc")
-    self.tabNpc:SetPoint("LEFT", self.tabDungeon, "RIGHT", 4, 0)
-    self.picker = W.TextButton(f, WIDTH - 238, 18, "", "Choose a dungeon", function()
+    self.tabNpc:SetPoint("LEFT", self.tabZone, "RIGHT", 4, 0)
+    self.picker = W.TextButton(f, WIDTH - 274, 18, "", "Choose a dungeon or zone", function()
         L.picking = not L.picking
         L:Update()
     end)
@@ -212,8 +216,9 @@ function L:SetMinimized(minimized)
     self.mini:SetShown(minimized)
     self.tabRoute:SetShown(not minimized)
     self.tabDungeon:SetShown(not minimized)
+    self.tabZone:SetShown(not minimized)
     self.tabNpc:SetShown(not minimized)
-    self.picker:SetShown(not minimized and ns.db.list.tab == "dungeon")
+    self.picker:SetShown(not minimized and (ns.db.list.tab == "dungeon" or ns.db.list.tab == "zone"))
     self.searchBox:SetShown(not minimized)
     -- keep the title bar where it is: grow / shrink downwards
     local top, left = f:GetTop(), f:GetLeft()
@@ -297,19 +302,25 @@ local function RowTooltip(row)
             GameTooltip:AddLine("Location: " .. stop.point.note, 0.8, 0.8, 0.8)
         end
         if stop.primary then AddLineDetails(stop.primary.line, stop.primary.index) end
-        if item.number then GameTooltip:AddLine("Click: point the arrow here", 0.5, 0.5, 0.5) end
+        GameTooltip:AddLine(item.number and "Click: point the arrow here and show it on the map"
+            or "Click: show it on the map", 0.5, 0.5, 0.5)
         GameTooltip:AddLine("Right-click: ignore this questline", 0.5, 0.5, 0.5)
     elseif item.entry then
         local e = item.entry
         GameTooltip:SetText(e.name, 1, 1, 1)
         GameTooltip:AddLine(L.EntryStatus(e), 1, 0.82, 0, true)
         GameTooltip:AddLine(L.EntryXP(e), 1, 0.82, 0)
+        if e.mz and e.mzZones then
+            GameTooltip:AddLine("(MZ) Multiple zones: " .. table.concat(e.mzZones, ", "), 1, 0.62, 0.25, true)
+        end
         if e.line then AddLineDetails(e.line, e.lineIndex) end
         if e.stop and e.stop.point then
             if e.stop.point.inside then
                 GameTooltip:AddLine("Inside " .. e.stop.point.inside .. " (the arrow points to the entrance)", 0.8, 0.8, 0.8)
             end
-            GameTooltip:AddLine("Click: point the arrow there", 0.5, 0.5, 0.5)
+            GameTooltip:AddLine("Click: point the arrow there and show the quest on the map", 0.5, 0.5, 0.5)
+        else
+            GameTooltip:AddLine("Click: show the quest on the map", 0.5, 0.5, 0.5)
         end
         if e.state ~= "done" then
             GameTooltip:AddLine(e.ignored and "Right-click: bring it back" or "Right-click: ignore this questline",
@@ -319,6 +330,11 @@ local function RowTooltip(row)
         local d = item.dungeonPick
         GameTooltip:SetText(d.name, 1, 1, 1)
         GameTooltip:AddLine(("%d quests in total"):format(#d.quests), 0.8, 0.8, 0.8)
+        GameTooltip:AddLine("Click: show its quests", 0.5, 0.5, 0.5)
+    elseif item.zonePick then
+        local z = item.zonePick
+        GameTooltip:SetText(z.name, 1, 1, 1)
+        GameTooltip:AddLine(("%d quests picked up here"):format(#z.quests), 0.8, 0.8, 0.8)
         GameTooltip:AddLine("Click: show its quests", 0.5, 0.5, 0.5)
     elseif item.toggleGrey then
         GameTooltip:SetText(L.showGrey and "Hide grey quests" or "Show grey quests too", 1, 1, 1)
@@ -347,7 +363,8 @@ local function RowTooltip(row)
         GameTooltip:AddLine(L.ChainXP(c.id), 1, 0.82, 0)
         local blocker = planner:BlockerText(c.line, c.index)
         if blocker then GameTooltip:AddLine(blocker, 1, 0.6, 0.2, true) end
-        if L.ChainState(c) ~= "done" then GameTooltip:AddLine("Click: point the arrow there", 0.5, 0.5, 0.5) end
+        GameTooltip:AddLine(L.ChainState(c) ~= "done" and "Click: point the arrow there and show it on the map"
+            or "Click: show it on the map", 0.5, 0.5, 0.5)
     elseif item.npc then
         local n = item.npc
         GameTooltip:SetText(n.name, 0.4, 1, 0.4)
@@ -468,12 +485,20 @@ function L:GetRow(index)
         elseif item.toggleGrey then
             L.showGrey = not L.showGrey
             L:Update()
-        elseif item.number then
-            ns.Arrow:Pin(item.stop)
-        elseif item.entry and item.entry.stop and item.entry.stop.point then
-            ns.Arrow:Pin(item.entry.stop)
+        elseif item.stop then
+            if item.number then ns.Arrow:Pin(item.stop) end
+            ns.QuestMarkers:Toggle(item.stop.questId)
+        elseif item.entry then
+            if item.entry.stop and item.entry.stop.point then ns.Arrow:Pin(item.entry.stop) end
+            ns.QuestMarkers:Toggle(item.entry.questId)
+        elseif item.upcoming then
+            ns.QuestMarkers:Toggle(item.upcoming.questId)
         elseif item.dungeonPick then
             ns.db.list.dungeon = item.dungeonPick.name
+            L.picking = false
+            L:Update()
+        elseif item.zonePick then
+            ns.db.list.zone = item.zonePick.name
             L.picking = false
             L:Update()
         elseif item.chainStep then
@@ -481,8 +506,9 @@ function L:GetRow(index)
             local state = L.ChainState(c)
             if state ~= "done" then
                 local stop = ns.DungeonView.MakeStop(c.id, state == "todo" and "pickup" or state)
-                if stop.point then ns.Arrow:Pin(stop) else ns.Print("no map position known for that quest.") end
+                if stop.point then ns.Arrow:Pin(stop) end
             end
+            ns.QuestMarkers:Toggle(c.id)
         elseif item.npc then
             if IsShiftKeyDown() then
                 ns.NpcFinder:ShareUrl(item.npc.id)
@@ -537,7 +563,17 @@ function L:SetTextSize(size)
     self:Update()
 end
 
+local ON_MAP = "  ·  |cff4da6ffshown on the map|r"
+
 function L:Fill(row, item)
+    self:FillItem(row, item)
+    local marked = ns.QuestMarkers.questId
+    if marked and not item.header and QuestIdOf(item) == marked then
+        row.line2:SetText((row.line2:GetText() or "") .. ON_MAP)
+    end
+end
+
+function L:FillItem(row, item)
     row.item = item
     row.header:SetText("")
     row.line1:SetText("")
@@ -598,7 +634,8 @@ function L:Fill(row, item)
             step = (" |cff808080(%d/%d)|r"):format(e.lineIndex, #e.line.steps)
         end
         local grey = e.state == "done" or e.ignored
-        row.line1:SetText(LevelTag(e.level) .. L.EntryTag(e) .. (grey and ("|cff9d9d9d" .. e.name .. "|r") or e.name) .. step)
+        local mz = e.mz and " |cffff9f40(MZ)|r" or ""
+        row.line1:SetText(LevelTag(e.level) .. L.EntryTag(e) .. (grey and ("|cff9d9d9d" .. e.name .. "|r") or e.name) .. step .. mz)
         local status = L.EntryStatus(e)
         local yards = e.stop and ns.Planner:DistanceTo(e.stop)
         if yards then status = status .. ("  ·  %d yd"):format(yards) end
@@ -623,6 +660,20 @@ function L:Fill(row, item)
         local recommended = ns.Planner.recommended and ns.Planner.recommended[d.name]
         row.line2:SetText((open > 0 and ("%d %s for you now"):format(open, open == 1 and "quest" or "quests")
             or "nothing for you right now") .. (recommended and "  ·  |cff40ff40recommended|r" or ""))
+    elseif item.zonePick then
+        local z = item.zonePick
+        local range = ""
+        if z.min then
+            range = z.min == z.max and ("[%d]"):format(z.min) or ("[%d-%d]"):format(z.min, z.max)
+            local color = GetQuestDifficultyColor and GetQuestDifficultyColor(math.floor((z.min + z.max) / 2))
+            if color then range = ("|cff%02x%02x%02x%s|r"):format(color.r * 255, color.g * 255, color.b * 255, range) end
+        end
+        local selected = z.name == ns.db.list.zone and "|cff4da6ff> |r" or ""
+        local here = item.here and "  |cff40ff40(you are here)|r" or ""
+        row.line1:SetText(selected .. range .. " " .. z.name .. here)
+        local open = ns.ZoneView:OpenCount(z)
+        row.line2:SetText(open > 0 and ("%d %s for you now"):format(open, open == 1 and "quest" or "quests")
+            or "nothing for you right now")
     elseif item.npc then
         self:FillNpc(row, item.npc)
     elseif item.npcMarked then
@@ -672,7 +723,7 @@ function L:Update()
     local collapsed = ns.db.collapsed
     local items = {}
     local tab = ns.db.list.tab
-    if tab ~= "dungeon" and tab ~= "npc" then tab = "route" end
+    if tab ~= "dungeon" and tab ~= "zone" and tab ~= "npc" then tab = "route" end
     self:StyleTabs(tab)
 
     if tab == "npc" then
@@ -697,6 +748,12 @@ function L:Update()
 
     if tab == "dungeon" then
         self:DungeonItems(items, Section)
+        self:Layout(self:WithChains(items))
+        return
+    end
+
+    if tab == "zone" then
+        self:ZoneItems(items, Section)
         self:Layout(self:WithChains(items))
         return
     end
@@ -751,16 +808,17 @@ end
 ---------------------------------------------------------------------------------------
 
 function L:StyleTabs(tab)
-    for key, b in pairs({ route = self.tabRoute, dungeon = self.tabDungeon, npc = self.tabNpc }) do
+    for key, b in pairs({ route = self.tabRoute, dungeon = self.tabDungeon, zone = self.tabZone, npc = self.tabNpc }) do
         local on = key == tab
         b:SetBackdropBorderColor(on and 0.3 or 0.25, on and 0.55 or 0.3, on and 0.9 or 0.4, 1)
         b.label:SetTextColor(on and 1 or 0.6, on and 0.82 or 0.6, on and 0 or 0.6)
     end
-    self.picker:SetShown(tab == "dungeon" and not ns.db.list.minimized)
+    self.picker:SetShown((tab == "dungeon" or tab == "zone") and not ns.db.list.minimized)
     self.placeholder:SetText(tab == "npc" and "Search friendly NPCs: name, title (flight master, innkeeper), zone"
         or "Search quests, questlines, dungeons, zones, NPCs")
-    local name = ns.db.list.dungeon
-    self.picker.label:SetText((self.picking and "|cff4da6ffChoose a dungeon:|r" or (name or "Choose a dungeon"))
+    local what = tab == "zone" and "zone" or "dungeon"
+    local name = tab == "zone" and ns.db.list.zone or ns.db.list.dungeon
+    self.picker.label:SetText((self.picking and ("|cff4da6ffChoose a " .. what .. ":|r") or (name or ("Choose a " .. what)))
         .. "  |cff808080v|r")
 end
 
@@ -878,6 +936,43 @@ function L:DungeonItems(items, Section)
     end
     Section("dungeonDone", "Done", r.done, function(e) return { entry = e } end)
     Section("dungeonIgnored", "Ignored", r.ignored, function(e) return { entry = e } end)
+end
+
+---------------------------------------------------------------------------------------
+-- Zone tab
+---------------------------------------------------------------------------------------
+
+function L:ZoneItems(items, Section)
+    local ZV = ns.ZoneView
+    if not ZV.ready then
+        items[1] = { message = "|cff808080Building the zone list...|r" }
+        ZV:Build(function()
+            if not ns.db.list.zone then
+                local here = ZV:Current()
+                ns.db.list.zone = here and here.name or nil
+            end
+            L:Update()
+        end)
+        return
+    end
+    local name = ns.db.list.zone
+    if self.picking or not name or not ZV:Find(name) then
+        local here = ZV:Current()
+        for _, z in ipairs(ZV:Zones()) do items[#items + 1] = { zonePick = z, here = z == here } end
+        if #items == 0 then items[1] = { message = "No zones with quests found." } end
+        return
+    end
+    local r = ZV:Entries(name)
+    Section("zoneOpen", "Quests", r.open, function(e) return { entry = e } end)
+    if #r.open == 0 then items[#items + 1] = { message = "Nothing open for you in this zone." } end
+    if #r.grey > 0 then
+        items[#items + 1] = { toggleGrey = true, count = #r.grey }
+        if self.showGrey then
+            for _, e in ipairs(r.grey) do items[#items + 1] = { entry = e } end
+        end
+    end
+    Section("zoneDone", "Done", r.done, function(e) return { entry = e } end)
+    Section("zoneIgnored", "Ignored", r.ignored, function(e) return { entry = e } end)
 end
 
 ---------------------------------------------------------------------------------------

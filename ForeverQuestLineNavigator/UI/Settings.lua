@@ -77,7 +77,7 @@ function S:Create()
     local db = ns.db
     local f = CreateFrame("Frame", "ForeverQuestLineNavigatorSettings", UIParent, "BackdropTemplate")
     self.frame = f
-    f:SetSize(WIDTH, 570)
+    f:SetSize(WIDTH, 670)
     f:SetPoint("CENTER")
     f:SetFrameStrata("DIALOG")
     f:SetClampedToScreen(true)
@@ -123,25 +123,36 @@ function S:Create()
     Add(Checkbox(f, "Travel time: boats and zeppelins", -262, function() return db.travelTime end,
         function(v) db.travelTime = v end,
         "Count a full 'just missed it' wait when the route changes continent. Off: a rough fixed estimate."))
-    Add(Checkbox(f, "Numbered map pins", -286, function() return db.pins end, function(v) db.pins = v end,
-        "On the world map (OpenMap too) and the minimap."))
-    Add(Checkbox(f, "Minimap button", -310, function() return db.minimap.shown end,
+    Add(Checkbox(f, "Minimap button", -286, function() return db.minimap.shown end,
         function(v) ns.MinimapButton:SetShown(v) end))
 
-    Header(f, "Dungeons", -344)
-    Add(Checkbox(f, "Check quests when entering a dungeon", -362, function() return db.dungeonCheck end,
+    Header(f, "Map", -320)
+    Add(Checkbox(f, "Numbered map pins", -338, function() return db.pins end, function(v) db.pins = v end,
+        "On the world map (OpenMap too) and the minimap."))
+    Add(Checkbox(f, "Route line on the world map", -362, function() return db.routeLine end,
+        function(v) db.routeLine = v end,
+        "A line from you to stop 1, then 2, 3 ... on the world map and OpenMap. Gold: you to the first stop."))
+    Add(Checkbox(f, "Click a quest: show it on the map", -386, function() return db.questMarkers end,
+        function(v) db.questMarkers = v end,
+        "Our own markers: S = quest giver, E = turn-in, blue dots = objectives. One quest at a time; click it again or press Esc to remove."))
+    Add(Checkbox(f, "Click a quest: open the quest log", -410, function() return db.openQuestLog end,
+        function(v) db.openQuestLog = v end,
+        "Opens the game's quest log on the quest when it is in your log, like Questie's tracker does. Not in combat."))
+
+    Header(f, "Dungeons", -444)
+    Add(Checkbox(f, "Check quests when entering a dungeon", -462, function() return db.dungeonCheck end,
         function(v) db.dungeonCheck = v end,
         "When you enter a dungeon, list in chat the quests for it you could have picked up but don't have."))
 
-    Header(f, "Nearby quest targets", -396)
-    Add(Checkbox(f, "Show quest NPCs that are near you", -414, function() return db.nearby.shown end,
+    Header(f, "Nearby quest targets", -496)
+    Add(Checkbox(f, "Show quest NPCs that are near you", -514, function() return db.nearby.shown end,
         function(v) db.nearby.shown = v; ns.Nearby:Redraw() end,
         "A small window lists quest mobs and NPCs close to you, with a click to target them. Finds them by nameplates (V key), target, mouseover and combat."))
-    Add(Checkbox(f, "Also inside dungeons", -438, function() return db.nearby.inInstances end,
+    Add(Checkbox(f, "Also inside dungeons", -538, function() return db.nearby.inInstances end,
         function(v) db.nearby.inInstances = v; ns.Nearby:Redraw() end))
 
-    Header(f, "Links", -472)
-    Add(Checkbox(f, "Shift-click a quest: Wowhead link", -490, function() return db.wowheadLinks end,
+    Header(f, "Links", -572)
+    Add(Checkbox(f, "Shift-click a quest: Wowhead link", -590, function() return db.wowheadLinks end,
         function(v) db.wowheadLinks = v end,
         "Shift + left-click a quest in the list puts its Wowhead (Forever) address in the chat box, selected: press Ctrl+C to copy it. Addons cannot open a browser."))
 

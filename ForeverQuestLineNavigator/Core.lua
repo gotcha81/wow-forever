@@ -120,6 +120,9 @@ ns.defaults = {
     arrow        = true,   -- show the blue arrow (always hidden inside instances)
     minimap      = { shown = true, angle = 200 },
     pins         = true,   -- numbered pins on the world map / OpenMap and minimap
+    routeLine    = true,   -- line from you through the route stops on the world map / OpenMap
+    questMarkers = true,   -- click a quest: our S / E / dot markers on the maps
+    openQuestLog = true,   -- click a quest: open the game's quest log on it (when in your log)
     riding       = "auto", -- "auto", "none", "60" or "100"
     levelAhead   = 2,      -- list chains whose first step unlocks within this many levels
     boatWait     = 300,    -- seconds: "just missed it" wait for a boat or zeppelin
@@ -130,8 +133,9 @@ ns.defaults = {
     dungeonMinutes = 40,   -- minutes for one dungeon run (/fqln dungeontime)
     dungeonCheck = false,  -- list missing quests in chat when you enter a dungeon
     list   = { shown = true, locked = false, minimized = false, textSize = 12, tab = "route",
-               point = { "RIGHT", "RIGHT", -80, 60 } }, -- list.dungeon = the dungeon picked in the Dungeon tab
-    collapsed = { notWorth = true, trivial = true, ignored = true, dungeonDone = true, dungeonIgnored = true },
+               point = { "RIGHT", "RIGHT", -80, 60 } }, -- list.dungeon / list.zone = picked in the Dungeon / Zone tab
+    collapsed = { notWorth = true, trivial = true, ignored = true, dungeonDone = true, dungeonIgnored = true,
+                  zoneDone = true, zoneIgnored = true },
     arrowFrame = { locked = false, textSize = 12, point = { "TOP", "TOP", 0, -140 } },
     nearby = { shown = true, inInstances = true, locked = false, point = { "TOP", "TOP", -300, -140 } },
     errorLog = {}, -- see the error log above
@@ -178,6 +182,7 @@ function ns.Refresh()
     ns.Nearby:UpdateWanted()
     ns.List:Update()
     ns.Pins:Update()
+    ns.QuestMarkers:Refresh()
 end
 DoRefresh = ns.Safe("refresh", ns.Refresh)
 
@@ -210,7 +215,10 @@ local function TryRegister(frame, event)
     pcall(frame.RegisterEvent, frame, event)
 end
 
-local CheckEntered = ns.Safe("dungeon check", function() ns.DungeonView:CheckEntered() end)
+local CheckEntered = ns.Safe("dungeon check", function()
+    ns.DungeonView:CheckEntered()
+    ns.ZoneView:OnZoneChanged()
+end)
 
 local function OnEvent(self, event, arg1, arg2)
     if event == "ADDON_LOADED" then
@@ -240,6 +248,8 @@ local function OnEvent(self, event, arg1, arg2)
         ns.MinimapButton:Create()
         ns.Nearby:Create()
         ns.NpcFinder:Create()
+        ns.QuestMarkers:Create()
+        ns.RouteLine:Create()
 
         -- Questie's public API tells us when its data is ready; a timer as backup.
         if Questie and Questie.API and type(Questie.API.RegisterOnReady) == "function" then
