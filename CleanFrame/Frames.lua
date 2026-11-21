@@ -216,6 +216,19 @@ local function Classification(unit)
     return ""
 end
 
+-- "Name - level". Level -1 (too high to see, e.g. bosses) shows "??". Secret values
+-- go straight to SetFormattedText, which can show them without reading them.
+local function SetNameLevel(f, name, level)
+    if name == nil then f.name:SetText(""); return end
+    if level == nil or (not IsSecret(level) and level == 0) then
+        f.name:SetFormattedText("%s", name)
+    elseif not IsSecret(level) and level < 0 then
+        f.name:SetFormattedText("%s - ??", name)
+    else
+        f.name:SetFormattedText("%s - %s", name, level)
+    end
+end
+
 local function PowerColor(unit)
     local ptype, token = UnitPowerType(unit)
     local c = PowerBarColor and (PowerBarColor[token] or PowerBarColor[ptype])
@@ -404,13 +417,13 @@ end
 
 local TEST = {
     player       = { hp = 0.85, max = 12500, pmax = 8000, offset = 0 },
-    target       = { name = "Test Elite", tag = "|cffffd100Elite|r", color = { 1, 0.5, 0.25 },
+    target       = { name = "Test Elite", level = 62, tag = "|cffffd100Elite|r", color = { 1, 0.5, 0.25 },
                      hp = 0.62, max = 48000, pmax = 100, power = "RAGE", offset = 1 },
-    targettarget = { name = "Test Boss", tag = "|cffff3030Boss|r", color = { 1, 0.1, 0.1 },
+    targettarget = { name = "Test Boss", level = -1, tag = "|cffff3030Boss|r", color = { 1, 0.1, 0.1 },
                      hp = 0.35, max = 950000, pmax = 100, power = "ENERGY", offset = 2 },
-    focus        = { name = "Test Mob", tag = "", color = { 0.25, 0.75, 0.25 },
+    focus        = { name = "Test Mob", level = 58, tag = "", color = { 0.25, 0.75, 0.25 },
                      hp = 0.9, max = 3200, pmax = 2400, power = "MANA", offset = 3 },
-    pet          = { name = "Test Pet", tag = "|cffc080ffMind controlled|r", color = { 1, 0.82, 0 },
+    pet          = { name = "Test Pet", level = 60, tag = "|cffc080ffMind controlled|r", color = { 1, 0.82, 0 },
                      hp = 0.5, max = 6100, pmax = 1500, power = "MANA", offset = 4 },
 }
 
@@ -421,7 +434,7 @@ local function ShowTest(f)
     local hp = math.floor(t.max * math.max(0.02, math.min(1, t.hp + 0.15 * wave)))
     local pw = math.floor(t.pmax * (0.5 + 0.4 * math.sin(GetTime() * 0.6 + t.offset)))
 
-    f.name:SetText(t.name or UnitName("player") or "Player")
+    SetNameLevel(f, t.name or UnitName("player") or "Player", t.level or UnitLevel("player"))
     f.class:SetText(t.tag or "")
     f.health:SetMinMaxValues(0, t.max); f.health:SetValue(hp)
     if s.healthColor == "class" and f.unit == "player" then
@@ -476,7 +489,7 @@ function F:Draw(f)
     end
     local db = ns.db.frames[unit] -- this frame's own settings
 
-    f.name:SetText(UnitName(unit) or "")
+    SetNameLevel(f, UnitName(unit), UnitLevel(unit))
     local tag = Classification(unit)
     if unit == "pet" and (Flag(UnitIsPossessed, "pet") or Flag(UnitIsCharmed, "pet")) then
         tag = (tag ~= "" and (tag .. "  ") or "") .. "|cffc080ffMind controlled|r"
