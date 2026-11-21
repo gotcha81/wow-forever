@@ -9,7 +9,7 @@
 -- close only with their own +/- button (only "In progress" starts open). An open
 -- chain shows the step you are on, with "[+] N earlier quests" above it and
 -- "[+] N next quests" below it. Every step shows its XP, the chain header shows
--- the XP of the whole chain. A key icon marks only the quest that rewards a key.
+-- the XP of the whole chain. A key icon follows the name of the quest (and chain) that rewards a key.
 -- The map button on a step puts its start and finish on the world map and minimap.
 -- Top row: search box (chain name, quest names, zone), zone drop-down, faction.
 
@@ -20,7 +20,8 @@ ns.Window = W
 
 local WIDTH, HEIGHT = 580, 620
 local ROW_WIDTH = WIDTH - 52
-local KEY_ICON = "Interface\\Icons\\INV_Misc_Key_03"
+-- Drawn inline, right after the name of the quest (or chain) that rewards a key.
+local KEY_TAG = " |TInterface\\Icons\\INV_Misc_Key_03:14:14:0:0:64:64:5:59:5:59|t"
 local MAP_ICON = "Interface\\Icons\\INV_Misc_Map_01"
 local PLUS = "Interface\\Buttons\\UI-PlusButton-Up"
 local MINUS = "Interface\\Buttons\\UI-MinusButton-Up"
@@ -331,7 +332,7 @@ local function ToggleClick(btn)
     if not d then return end
     local cdb = ns.charDB
     if d.type == "section" then
-        cdb.sections[d.key] = not d.open
+        cdb.sections[d.section] = not d.open
     elseif d.type == "chain" then
         cdb.chains[d.line.id] = not d.open
     elseif d.type == "expander" then
@@ -365,11 +366,6 @@ function W:GetRow(i)
     row.toggle.tex:SetAllPoints()
     row.toggle:SetHighlightTexture("Interface\\Buttons\\UI-PlusButton-Hilight", "ADD")
     row.toggle:SetScript("OnClick", ns.Safe("toggle", ToggleClick))
-
-    row.key = row:CreateTexture(nil, "ARTWORK")
-    row.key:SetSize(14, 14)
-    row.key:SetTexture(KEY_ICON)
-    row.key:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
     row.text = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     row.text:SetJustifyH("LEFT")
@@ -410,7 +406,7 @@ end
 function W:Layout(row, d)
     local indent = INDENT[d.type] or 0
     row:SetHeight(HEIGHTS[d.type] or 20)
-    row.toggle:Hide(); row.key:Hide(); row.map:Hide(); row.sub:Hide()
+    row.toggle:Hide(); row.map:Hide(); row.sub:Hide()
     row.text:ClearAllPoints(); row.right:ClearAllPoints(); row.sub:ClearAllPoints()
     row.text:SetFontObject(d.type == "section" and "GameFontNormalLarge" or
                            d.type == "expander" and "GameFontHighlightSmall" or "GameFontNormal")
@@ -421,16 +417,6 @@ function W:Layout(row, d)
         row.toggle:ClearAllPoints()
         row.toggle:SetPoint("LEFT", row, "LEFT", x, 0)
         row.toggle:Show()
-        x = x + 18
-    end
-    if d.key then
-        row.key:ClearAllPoints()
-        if d.type == "step" then
-            row.key:SetPoint("TOPLEFT", row, "TOPLEFT", x, -3)
-        else
-            row.key:SetPoint("LEFT", row, "LEFT", x, 0)
-        end
-        row.key:Show()
         x = x + 18
     end
 
@@ -479,8 +465,8 @@ local function StepRow(line, i, isCurrent)
     end
     if line.dungeonOf[id] then tag = tag .. TEAL .. " [Dungeon: " .. line.dungeonOf[id] .. "]|r" end
     local marker = isCurrent and not done and (GOLD .. "> |r") or ""
-    local text = ("%s%s%d/%d|r  %s[%s] %s|r%s"):format(marker, GREY, i, #line.steps,
-        ColorFor(level, done), level or "?", C:QuestName(id), tag)
+    local text = ("%s%s%d/%d|r  %s[%s] %s|r%s%s"):format(marker, GREY, i, #line.steps,
+        ColorFor(level, done), level or "?", C:QuestName(id), line.keyOf[id] and KEY_TAG or "", tag)
     local xp, est = ns.XP:Get(id)
 
     local sub
@@ -490,7 +476,7 @@ local function StepRow(line, i, isCurrent)
     else
         sub = "Install Questie to see who gives and takes this quest."
     end
-    return { type = "step", line = line, index = i, key = line.keyOf[id], text = text, sub = sub,
+    return { type = "step", line = line, index = i, text = text, sub = sub,
              right = XPText(xp, est), mapButton = D.questie, pinned = ns.MapPins.questId == id }
 end
 
@@ -506,7 +492,8 @@ local function AddChain(rows, line, sectionKey)
         side = line.side == "Horde" and " |cffff4040[H]|r" or " |cff4080ff[A]|r"
     end
     local where = sectionKey == "zone" and "" or (line.group and (GREY .. "  " .. line.group .. "|r") or "")
-    local text = ("%s%s|r%s  %s(%s, %d quests)|r%s"):format(GOLD, line.name, side, GREY, levels, #line.steps, where)
+    local text = ("%s%s|r%s%s  %s(%s, %d quests)|r%s"):format(GOLD, line.name, line.hasKey and KEY_TAG or "",
+        side, GREY, levels, #line.steps, where)
     local right
     if st.started and st.status ~= "completed" then
         right = ("%s left of %s"):format(XPText(left, est), XPText(total, est))
@@ -551,7 +538,7 @@ local function AddSection(rows, key, label, lines, defaultOpen, kind)
         if #lines == 0 then return 0 end
     end
     local open = filtering or SectionOpen(key, defaultOpen)
-    rows[#rows + 1] = { type = "section", key = key, open = open, locked = filtering,
+    rows[#rows + 1] = { type = "section", section = key, open = open, locked = filtering,
                         text = ("%s %s(%d)|r"):format(label, GREY, #lines) }
     if not open then return #lines end
     if #lines == 0 then
