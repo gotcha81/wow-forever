@@ -167,7 +167,8 @@ end
 ns.defaults = {
     locked       = true,
     hideBlizzard = true,      -- hide the game's own frames (needs /reload)
-    -- Text on each side of a bar: "none", "value", "percent" or "both".
+    -- Text on each side of a bar: "none", "current" (1234), "value" (1234 / 2000),
+    -- "percent" or "both".
     healthLeft   = "percent",
     healthRight  = "value",
     powerLeft    = "percent",

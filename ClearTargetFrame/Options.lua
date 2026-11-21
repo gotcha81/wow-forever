@@ -7,7 +7,7 @@ local O = {}
 ns.Options = O
 
 local TEXT_CHOICES = {
-    { "none", "None" }, { "value", "Value (1234 / 2000)" },
+    { "none", "None" }, { "current", "Remaining (1234)" }, { "value", "Value (1234 / 2000)" },
     { "percent", "Percent (62%)" }, { "both", "Both (1234 / 2000  (62%))" },
 }
 local HEALTH_COLORS = { { "green", "Green" }, { "class", "Class colour for players" } }

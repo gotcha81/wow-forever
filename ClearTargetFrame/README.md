@@ -20,7 +20,7 @@ Open them with the **minimap button**, `/ctf`, the game's addon menu, or
 Options > AddOns > ClearTargetFrame. Right-click the minimap button to unlock or lock the frames.
 
 - **Health / power text**: a text on the left and one on the right of each bar, each
-  none, value (`1234 / 2000`), percent (`62%`) or both. Default: percent left, value right.
+  none, remaining (`1234`), value (`1234 / 2000`), percent (`62%`) or both. Default: percent left, value right.
 - **Health colour**: green, or the class colour for players
 - **Size**: width, name bar, health bar and power bar heights, border size
 - **Per frame**: show or hide, scale, border (level colour or a custom colour)

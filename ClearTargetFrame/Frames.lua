@@ -3,7 +3,7 @@
 -- Each frame, top to bottom, inside a coloured border:
 --   name bar   : small, the name on the left, "Elite" / "Boss" on the right
 --   health bar : text on the left and on the right, each none / value / percent / both
---                (default: percent left, value right)
+--                (default: percent left, value right; also "remaining" = current only)
 --   power bar  : mana, rage, energy, ... in its own colour, same text choices
 --
 -- The frames are secure unit buttons, so left-click targets and right-click opens
@@ -67,7 +67,9 @@ end
 local function BarText(mode, cur, max)
     if mode == "none" or not max or max <= 0 then return "" end
     local pct = math.floor(cur / max * 100 + 0.5)
-    if mode == "value" then
+    if mode == "current" then
+        return Short(cur)
+    elseif mode == "value" then
         return Short(cur) .. " / " .. Short(max)
     elseif mode == "percent" then
         return pct .. "%"
