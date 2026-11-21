@@ -5,11 +5,13 @@
 --   Trivial (N)                chains where every quest is grey for you
 --   Completed (N)              chains you have finished
 --
--- An open chain shows the step you are on, with "[+] N earlier quests" above it
--- and "[+] N next quests" below it; each opens on its own. Every step shows its
--- XP, the chain header shows the XP of the whole chain. A key icon marks chains
--- that reward a key (on the chain and on the quest that gives the key). The map button
--- on a step puts its start and finish on the world map and minimap.
+-- Nothing opens by itself: sections, chains and the earlier / next blocks open or
+-- close only with their own +/- button (only "In progress" starts open). An open
+-- chain shows the step you are on, with "[+] N earlier quests" above it and
+-- "[+] N next quests" below it. Every step shows its XP, the chain header shows
+-- the XP of the whole chain. A key icon marks only the quest that rewards a key.
+-- The map button on a step puts its start and finish on the world map and minimap.
+-- Top row: search box (chain name, quest names, zone), zone drop-down, faction.
 
 local ADDON_NAME, ns = ...
 
@@ -73,9 +75,8 @@ end
 
 local function FactionLabel()
     local f = ns.db.faction
-    if f == "mine" then return "Faction: yours (" .. (UnitFactionGroup("player") or "?") .. ")" end
-    if f == "Both" then return "Faction: both" end
-    return "Faction: " .. f
+    if f == "mine" then return "My faction" end
+    return f -- "Horde", "Alliance" or "Both"
 end
 
 local function CurrentZoneName()
@@ -91,10 +92,35 @@ local function SectionOpen(key, default)
     return v
 end
 
-local function ChainOpen(line, sectionKey)
-    local v = ns.charDB.chains[line.id]
-    if v == nil then return sectionKey == "active" end
-    return v
+-- Chains are closed until you open them with their + button.
+local function ChainOpen(line)
+    return ns.charDB.chains[line.id] == true
+end
+
+---------------------------------------------------------------------------------------
+-- Search and zone filter (for this session; the search clears when the window closes)
+---------------------------------------------------------------------------------------
+
+W.search = ""   -- lower case
+W.zone = nil    -- nil = all zones, else a section name (line.group)
+
+local function SearchText(line)
+    if not line.searchText then
+        local parts = { line.name, line.group or "" }
+        for _, id in ipairs(line.steps) do parts[#parts + 1] = ns.Chains:QuestName(id) end
+        line.searchText = table.concat(parts, "\n"):lower()
+    end
+    return line.searchText
+end
+
+function W:Filtering()
+    return self.search ~= "" or self.zone ~= nil
+end
+
+function W:Matches(line)
+    if self.zone and line.group ~= self.zone then return false end
+    if self.search ~= "" and not SearchText(line):find(self.search, 1, true) then return false end
+    return true
 end
 
 ---------------------------------------------------------------------------------------
@@ -139,10 +165,40 @@ function W:Create()
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", -2, -2)
 
+    -- One slim row: search box, zone drop-down, faction button.
+    local okBox, box = pcall(CreateFrame, "EditBox", "QuestJournalSearchBox", f, "SearchBoxTemplate")
+    if not okBox then box = CreateFrame("EditBox", "QuestJournalSearchBox", f, "InputBoxTemplate") end
+    box:SetSize(250, 20)
+    box:SetPoint("TOPLEFT", 20, -46)
+    box:SetAutoFocus(false)
+    if not okBox then
+        local hint = box:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+        hint:SetPoint("LEFT", 2, 0)
+        hint:SetText("Search")
+        box.hint = hint
+    end
+    box:HookScript("OnTextChanged", ns.Safe("search", function(b)
+        local text = (b:GetText() or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+        if b.hint then b.hint:SetShown(text == "") end
+        if text ~= W.search then
+            W.search = text
+            W:Update()
+        end
+    end))
+    box:HookScript("OnEscapePressed", function(b) b:ClearFocus() end)
+    box:HookScript("OnEnterPressed", function(b) b:ClearFocus() end)
+    self.searchBox = box
+
+    local zone = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    zone:SetSize(170, 22)
+    zone:SetPoint("LEFT", box, "RIGHT", 10, 0)
+    zone:SetScript("OnClick", ns.Safe("zone menu", function() W:ToggleZoneMenu() end))
+    self.zoneButton = zone
+
     -- Faction filter: click to go round yours / Horde / Alliance / both.
     local faction = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    faction:SetSize(190, 22)
-    faction:SetPoint("TOPLEFT", 14, -44)
+    faction:SetSize(100, 22)
+    faction:SetPoint("LEFT", zone, "RIGHT", 6, 0)
     faction:SetScript("OnClick", ns.Safe("faction", function()
         local cur = 1
         for i, v in ipairs(FACTIONS) do if v == ns.db.faction then cur = i end end
@@ -160,8 +216,7 @@ function W:Create()
     self.factionButton = faction
 
     self.info = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    self.info:SetPoint("LEFT", faction, "RIGHT", 12, 0)
-    self.info:SetPoint("RIGHT", f, "RIGHT", -16, 0)
+    self.info:SetPoint("RIGHT", close, "LEFT", -6, 0)
     self.info:SetJustifyH("RIGHT")
 
     local scroll = CreateFrame("ScrollFrame", "QuestJournalScroll", f, "UIPanelScrollFrameTemplate")
@@ -173,6 +228,87 @@ function W:Create()
     self.scroll, self.content = scroll, content
 
     f:SetScript("OnShow", ns.Safe("window show", function() W:Update() end))
+    f:SetScript("OnHide", ns.Safe("window hide", function()
+        if W.zoneMenu then W.zoneMenu:Hide() end
+        W.search = ""
+        W.searchBox:SetText("")
+        W.searchBox:ClearFocus()
+    end))
+end
+
+---------------------------------------------------------------------------------------
+-- Zone drop-down: a small list under the zone button
+---------------------------------------------------------------------------------------
+
+local MENU_ROW = 18
+
+local function ZoneNames()
+    local seen, names = {}, {}
+    for _, line in ipairs(ns.Chains.lines or {}) do
+        local g = line.group
+        if g and not seen[g] and ns.Chains.FactionAllows(line.side) then
+            seen[g] = true
+            names[#names + 1] = g
+        end
+    end
+    table.sort(names)
+    return names
+end
+
+function W:ToggleZoneMenu()
+    local menu = self.zoneMenu
+    if menu and menu:IsShown() then menu:Hide(); return end
+    if not ns.ready then return end
+    if not menu then
+        menu = CreateFrame("Frame", nil, self.frame, "BackdropTemplate")
+        menu:SetFrameStrata("DIALOG")
+        menu:SetSize(210, 320)
+        menu:SetPoint("TOPLEFT", self.zoneButton, "BOTTOMLEFT", 0, -2)
+        menu:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+                           edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 14,
+                           insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+        menu:SetBackdropColor(0.06, 0.04, 0.02, 0.98)
+        menu:SetBackdropBorderColor(0.85, 0.68, 0.30, 1)
+        menu:EnableMouse(true)
+        local scroll = CreateFrame("ScrollFrame", nil, menu, "UIPanelScrollFrameTemplate")
+        scroll:SetPoint("TOPLEFT", 6, -6)
+        scroll:SetPoint("BOTTOMRIGHT", -26, 6)
+        local content = CreateFrame("Frame", nil, scroll)
+        content:SetSize(176, 1)
+        scroll:SetScrollChild(content)
+        menu.content, menu.buttons = content, {}
+        self.zoneMenu = menu
+    end
+
+    local entries = { false } -- false = all zones
+    for _, name in ipairs(ZoneNames()) do entries[#entries + 1] = name end
+    for i, name in ipairs(entries) do
+        local b = menu.buttons[i]
+        if not b then
+            b = CreateFrame("Button", nil, menu.content)
+            b:SetSize(176, MENU_ROW)
+            b:SetPoint("TOPLEFT", 0, -(i - 1) * MENU_ROW)
+            b:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+            b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            b.text:SetPoint("LEFT", 4, 0)
+            b.text:SetPoint("RIGHT", -4, 0)
+            b.text:SetJustifyH("LEFT")
+            b.text:SetWordWrap(false)
+            b:SetScript("OnClick", ns.Safe("zone pick", function(btn)
+                W.zone = btn.zone or nil
+                menu:Hide()
+                W:Update()
+            end))
+            menu.buttons[i] = b
+        end
+        b.zone = name
+        local selected = (name or nil) == self.zone
+        b.text:SetText((selected and GOLD or "") .. (name or "All zones") .. (selected and "|r" or ""))
+        b:Show()
+    end
+    for i = #entries + 1, #menu.buttons do menu.buttons[i]:Hide() end
+    menu.content:SetHeight(#entries * MENU_ROW)
+    menu:Show()
 end
 
 function W:Toggle()
@@ -189,8 +325,9 @@ end
 
 local function RowTooltip(row) W:ShowTooltip(row) end
 
-local function RowClick(row, button)
-    local d = row.data
+-- Only the +/- button opens or closes something.
+local function ToggleClick(btn)
+    local d = btn:GetParent().data
     if not d then return end
     local cdb = ns.charDB
     if d.type == "section" then
@@ -218,14 +355,16 @@ end
 function W:GetRow(i)
     local row = self.rows[i]
     if row then return row end
-    row = CreateFrame("Button", nil, self.content)
+    row = CreateFrame("Frame", nil, self.content)
     row:SetWidth(ROW_WIDTH)
-    row:RegisterForClicks("LeftButtonUp")
-    row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
-    row:GetHighlightTexture():SetAlpha(0.35)
+    row:EnableMouse(true) -- for the tooltips; the row itself is not a button
 
-    row.toggle = row:CreateTexture(nil, "ARTWORK")
-    row.toggle:SetSize(14, 14)
+    row.toggle = CreateFrame("Button", nil, row)
+    row.toggle:SetSize(16, 16)
+    row.toggle.tex = row.toggle:CreateTexture(nil, "ARTWORK")
+    row.toggle.tex:SetAllPoints()
+    row.toggle:SetHighlightTexture("Interface\\Buttons\\UI-PlusButton-Hilight", "ADD")
+    row.toggle:SetScript("OnClick", ns.Safe("toggle", ToggleClick))
 
     row.key = row:CreateTexture(nil, "ARTWORK")
     row.key:SetSize(14, 14)
@@ -262,7 +401,6 @@ function W:GetRow(i)
     end))
     row.map:SetScript("OnLeave", GameTooltip_Hide)
 
-    row:SetScript("OnClick", ns.Safe("row click", RowClick))
     row:SetScript("OnEnter", ns.Safe("row tooltip", RowTooltip))
     row:SetScript("OnLeave", GameTooltip_Hide)
     self.rows[i] = row
@@ -278,8 +416,8 @@ function W:Layout(row, d)
                            d.type == "expander" and "GameFontHighlightSmall" or "GameFontNormal")
 
     local x = indent
-    if d.type == "section" or d.type == "chain" or d.type == "expander" then
-        row.toggle:SetTexture(d.open and MINUS or PLUS)
+    if d.type == "chain" or d.type == "expander" or (d.type == "section" and not d.locked) then
+        row.toggle.tex:SetTexture(d.open and MINUS or PLUS)
         row.toggle:ClearAllPoints()
         row.toggle:SetPoint("LEFT", row, "LEFT", x, 0)
         row.toggle:Show()
@@ -359,7 +497,7 @@ end
 local function AddChain(rows, line, sectionKey)
     local C = ns.Chains
     local st = line.state
-    local open = ChainOpen(line, sectionKey)
+    local open = ChainOpen(line)
     local total, left, est = C:ChainXP(line)
     local levels = st.minLevel and (st.minLevel == st.maxLevel and tostring(st.minLevel)
         or (st.minLevel .. "-" .. st.maxLevel)) or "?"
@@ -375,7 +513,7 @@ local function AddChain(rows, line, sectionKey)
     else
         right = "Chain total " .. XPText(total, est)
     end
-    rows[#rows + 1] = { type = "chain", line = line, open = open, key = line.hasKey, text = text, right = right }
+    rows[#rows + 1] = { type = "chain", line = line, open = open, text = text, right = right }
     if not open then return end
 
     local cur = st.current
@@ -400,16 +538,28 @@ local function AddChain(rows, line, sectionKey)
     end
 end
 
+-- While searching or a zone is picked, sections without matches are left out and
+-- the others show their matches (the chains themselves stay closed).
 local function AddSection(rows, key, label, lines, defaultOpen, kind)
-    local open = SectionOpen(key, defaultOpen)
-    rows[#rows + 1] = { type = "section", key = key, open = open,
+    local filtering = W:Filtering()
+    if filtering then
+        local kept = {}
+        for _, line in ipairs(lines) do
+            if W:Matches(line) then kept[#kept + 1] = line end
+        end
+        lines = kept
+        if #lines == 0 then return 0 end
+    end
+    local open = filtering or SectionOpen(key, defaultOpen)
+    rows[#rows + 1] = { type = "section", key = key, open = open, locked = filtering,
                         text = ("%s %s(%d)|r"):format(label, GREY, #lines) }
-    if not open then return end
+    if not open then return #lines end
     if #lines == 0 then
         rows[#rows + 1] = { type = "note", text = GREY .. "Nothing here yet.|r" }
-        return
+        return 0
     end
     for _, line in ipairs(lines) do AddChain(rows, line, kind or key) end
+    return #lines
 end
 
 function W:BuildRows()
@@ -432,7 +582,9 @@ function W:BuildRows()
     table.sort(s.trivial, ByLevel)
     table.sort(s.completed, ByLevel)
 
-    AddSection(rows, "active", "In progress", s.active, true)
+    -- Only "In progress" starts open (showing chain names); everything else opens
+    -- when you click its + button, and stays as you left it.
+    local shown = AddSection(rows, "active", "In progress", s.active, true)
 
     local here = CurrentZoneName()
     local names = {}
@@ -442,23 +594,25 @@ function W:BuildRows()
         if b == here then return false end
         return a < b
     end)
-    local shown = #s.active + #s.trivial + #s.completed
     for _, name in ipairs(names) do
         local list = s.zones[name]
         table.sort(list, ByLevel)
-        shown = shown + #list
-        AddSection(rows, "zone:" .. name, name == here and (name .. GREEN .. " (you are here)|r") or name,
-                   list, name == here, "zone")
+        shown = shown + AddSection(rows, "zone:" .. name,
+            name == here and (name .. GREEN .. " (you are here)|r") or name, list, false, "zone")
     end
 
-    AddSection(rows, "trivial", "Trivial", s.trivial, false)
-    AddSection(rows, "completed", "Completed", s.completed, false)
+    shown = shown + AddSection(rows, "trivial", "Trivial", s.trivial, false)
+    shown = shown + AddSection(rows, "completed", "Completed", s.completed, false)
+    if shown == 0 and W:Filtering() then
+        rows[#rows + 1] = { type = "note", text = GREY .. "No chains match.|r" }
+    end
     return rows, shown
 end
 
 function W:Update()
     if not self.frame then return end
     self.factionButton:SetText(FactionLabel())
+    self.zoneButton:SetText(self.zone or "All zones")
     if not self.frame:IsShown() then return end -- redrawn on show
     ns.XP:NewDraw()
     local rows, shown = self:BuildRows()
