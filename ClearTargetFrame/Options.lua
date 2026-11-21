@@ -212,21 +212,15 @@ function O:Create()
         function() return db.healthColor end, function(v) db.healthColor = v end)
     y = y - 40
 
-    Label(c, "Size", 12, y, "GameFontNormal")
-    y = y - 24
-    for _, s in ipairs({
+    -- Each frame has its own size.
+    local SIZES = {
         { "Width", "width", 100, 400, 5 },
         { "Name bar height", "nameHeight", 8, 24, 1 },
         { "Health bar height", "healthHeight", 8, 60, 1 },
         { "Power bar height", "powerHeight", 3, 40, 1 },
         { "Border size", "borderSize", 1, 6, 1 },
-    }) do
-        local key = s[2]
-        Slider(c, s[1], 16, y, s[3], s[4], s[5], function() return db[key] end, function(v) db[key] = v end)
-        y = y - 28
-    end
-    y = y - 12
-
+        { "Scale", "scale", 0.5, 2, 0.05 },
+    }
     for _, unit in ipairs(ns.Frames.UNITS) do
         local fs = db.frames[unit]
         Label(c, ns.Frames.LABELS[unit], 12, y, "GameFontNormal")
@@ -234,8 +228,11 @@ function O:Create()
         Check(c, "Show", 16, y, function() return fs.shown end,
             function(v) fs.shown = v; Changed() end)
         y = y - 28
-        Slider(c, "Scale", 16, y, 0.5, 2, 0.05, function() return fs.scale end, function(v) fs.scale = v end)
-        y = y - 28
+        for _, s in ipairs(SIZES) do
+            local key = s[2]
+            Slider(c, s[1], 16, y, s[3], s[4], s[5], function() return fs[key] end, function(v) fs[key] = v end)
+            y = y - 28
+        end
         Cycle(c, "Border", 16, y, 160, BORDER_MODES,
             function() return fs.border end, function(v) fs.border = v end)
         Swatch(c, 16 + 130 + 170, y, function() return fs.color end)

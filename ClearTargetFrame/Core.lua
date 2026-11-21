@@ -158,6 +158,11 @@ local function FrameDefaults(point, x, y, scale)
     return {
         shown = true,
         scale = scale,
+        width        = 200,
+        nameHeight   = 12,
+        healthHeight = 22,
+        powerHeight  = 10,
+        borderSize   = 2,
         point = { point, "TOPLEFT", x, y },
         border = "auto",                     -- "auto" (level colour; class colour on your own frame) or "custom"
         color = { r = 0.6, g = 0.6, b = 0.6 }, -- the custom border colour
@@ -175,12 +180,7 @@ ns.defaults = {
     powerRight   = "value",
     minimap      = { shown = true, angle = 200 },
     healthColor  = "green",   -- "green" or "class" (class colour for players)
-    width        = 200,
-    nameHeight   = 12,
-    healthHeight = 22,
-    powerHeight  = 10,
-    borderSize   = 2,
-    frames = {
+    frames = {     -- each frame has its own size, scale, position and border
         player       = FrameDefaults("TOPLEFT", 20, -20, 1),
         target       = FrameDefaults("TOPLEFT", 260, -20, 1),
         targettarget = FrameDefaults("TOPLEFT", 480, -40, 0.75),
@@ -222,6 +222,20 @@ local function OnEvent(self, event, arg1)
     if event == "ADDON_LOADED" then
         if arg1 ~= ADDON_NAME then return end
         ClearTargetFrameDB = ClearTargetFrameDB or {}
+        -- Up to 0.2.4 the sizes were shared by all frames: give each frame those values.
+        local old = ClearTargetFrameDB
+        if type(old.frames) == "table" then
+            for _, key in ipairs({ "width", "nameHeight", "healthHeight", "powerHeight", "borderSize" }) do
+                if old[key] ~= nil then
+                    for _, s in pairs(old.frames) do
+                        if type(s) == "table" and s[key] == nil then s[key] = old[key] end
+                    end
+                end
+            end
+        end
+        for _, key in ipairs({ "width", "nameHeight", "healthHeight", "powerHeight", "borderSize" }) do
+            old[key] = nil
+        end
         ApplyDefaults(ClearTargetFrameDB, ns.defaults)
         ns.db = ClearTargetFrameDB
         ns.db.healthText, ns.db.powerText = nil, nil -- 0.1.0 settings, replaced by left/right

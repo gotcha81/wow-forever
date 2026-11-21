@@ -22,8 +22,8 @@ Options > AddOns > ClearTargetFrame. Right-click the minimap button to unlock or
 - **Health / power text**: a text on the left and one on the right of each bar, each
   none, remaining (`1234`), value (`1234 / 2000`), percent (`62%`) or both. Default: percent left, value right.
 - **Health colour**: green, or the class colour for players
-- **Size**: width, name bar, health bar and power bar heights, border size
-- **Per frame**: show or hide, scale, border (level colour or a custom colour)
+- **Size, per frame**: each frame has its own width, name bar, health bar and power bar heights, border size and scale
+- **Per frame**: show or hide, border (level colour or a custom colour)
 - **Unlock** to drag the frames, **Reset positions** to put them back
 
 Sizes and positions can't change in combat (a game rule); they apply when combat ends.

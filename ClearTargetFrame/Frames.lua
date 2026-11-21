@@ -288,8 +288,8 @@ end
 ---------------------------------------------------------------------------------------
 
 local function ApplyLayout(f)
-    local db = ns.db
-    local s = db.frames[f.unit]
+    local db = ns.db.frames[f.unit] -- every size is per frame
+    local s = db
     local b = db.borderSize
     f:SetScale(s.scale)
     f:SetSize(db.width + 2 * b, db.nameHeight + db.healthHeight + db.powerHeight + 2 * b + 2)
