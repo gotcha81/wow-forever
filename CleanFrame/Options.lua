@@ -1,4 +1,4 @@
--- ClearTargetFrame: the settings panel (game menu > Options > AddOns > ClearTargetFrame).
+-- CleanFrame: the settings panel (game menu > Options > AddOns > CleanFrame).
 -- Built from plain widgets (no drop-down menus), so it works whatever templates
 -- the client has.
 
@@ -170,11 +170,11 @@ end
 
 function O:Create()
     local panel = CreateFrame("Frame")
-    panel.name = "ClearTargetFrame"
+    panel.name = "CleanFrame"
     self.panel = panel
 
     local db = ns.db
-    Label(panel, "ClearTargetFrame", 12, -12, "GameFontNormalLarge")
+    Label(panel, "CleanFrame", 12, -12, "GameFontNormalLarge")
     Label(panel, "v" .. ns.Version(), 170, -16, "GameFontDisableSmall")
 
     -- Tabs: General, then one per frame. Each tab is a page in the scroll area.
@@ -226,6 +226,10 @@ function O:Create()
     Check(c, "Unlock the frames (drag them to move)", 12, y,
         function() return not db.locked end,
         function(v) return ns.Frames:SetLocked(not v) end)
+    y = y - 28
+    Check(c, "Test mode: show every frame with sample data (ends when combat starts)", 12, y,
+        function() return ns.Frames.testMode end,
+        function(v) return ns.Frames:SetTestMode(v) end)
     y = y - 28
     Check(c, "Hide the game's own player, target, focus and pet frames (needs /reload)", 12, y,
         function() return db.hideBlizzard end,
@@ -317,7 +321,7 @@ function O:Create()
     end))
 
     if Settings and Settings.RegisterCanvasLayoutCategory then
-        local category = Settings.RegisterCanvasLayoutCategory(panel, "ClearTargetFrame")
+        local category = Settings.RegisterCanvasLayoutCategory(panel, "CleanFrame")
         Settings.RegisterAddOnCategory(category)
         self.category = category
     elseif InterfaceOptions_AddCategory then
@@ -331,7 +335,7 @@ function O:Open()
         return
     end
     if not self.panel then
-        ns.Print("the settings panel could not be created. Type /ctf errors to see why.")
+        ns.Print("the settings panel could not be created. Type /cfr errors to see why.")
     elseif self.category and Settings and Settings.OpenToCategory then
         local id = self.category.GetID and self.category:GetID() or self.category.ID
         Settings.OpenToCategory(id)

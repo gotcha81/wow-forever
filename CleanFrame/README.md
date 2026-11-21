@@ -1,4 +1,4 @@
-# ClearTargetFrame
+# CleanFrame
 
 Clean, simple frames for **you, your target, your target's target, your focus and your pet**
 in WoW Forever. Each frame shows only:
@@ -21,8 +21,15 @@ your pet. The Pet frame shows it and marks it **Mind controlled**.
 
 ## Settings
 
-Open them with the **minimap button**, `/ctf`, the game's addon menu, or
-Options > AddOns > ClearTargetFrame. Right-click the minimap button to unlock or lock the frames.
+Open them with the **minimap button**, `/cfr`, the game's addon menu, or
+Options > AddOns > CleanFrame. Right-click the minimap button to unlock or lock the frames.
+
+**Test mode** (General tab, `/cfr test`, or Shift-click the minimap button) shows every
+frame with sample data: a different level colour, Elite/Boss/Mind controlled tag and power
+type on each, moving health and sample debuffs. Change settings while it runs to see them
+at once. It ends when combat starts.
+
+(Up to 0.6.0 this addon was called ClearTargetFrame, with `/ctf`.)
 
 The settings have tabs: **General** (unlock, hide the game's frames, minimap button,
 reset positions) and one tab per frame: Player, Target, Target of target, Focus, Pet.
@@ -43,13 +50,14 @@ Sizes and positions can't change in combat (a game rule); they apply when combat
 
 | Command | What it does |
 |---|---|
-| `/ctf` | open the settings |
-| `/ctf unlock` / `/ctf lock` | drag the frames / fix them in place |
-| `/ctf reset` | default positions |
-| `/ctf minimap on\|off` | show or hide the minimap button |
-| `/ctf errors` | caught errors (`/ctf errors clear` empties the list) |
+| `/cfr` | open the settings |
+| `/cfr unlock` / `/cfr lock` | drag the frames / fix them in place |
+| `/cfr test` | test mode on / off |
+| `/cfr reset` | default positions |
+| `/cfr minimap on\|off` | show or hide the minimap button |
+| `/cfr errors` | caught errors (`/cfr errors clear` empties the list) |
 
-`/cleartargetframe` works the same as `/ctf`.
+`/cleanframe` works the same as `/cfr`.
 
 ## Licence
 

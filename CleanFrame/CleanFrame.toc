@@ -1,0 +1,18 @@
+## Interface: 16001
+## Title: CleanFrame
+## Notes: Clean player, target, target-of-target, focus and pet frames: name, elite/boss, health and power, with a level-coloured border. /cfr
+## Author: gotcha81
+## Version: 0.7.0
+## IconTexture: Interface\Icons\Ability_Hunter_MarkedForDeath
+## SavedVariables: CleanFrameDB
+## AddonCompartmentFunc: CleanFrame_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: CleanFrame_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: CleanFrame_OnAddonCompartmentLeave
+## X-License: MIT
+## X-Website: https://github.com/gotcha81/wow-forever
+
+Core.lua
+Frames.lua
+Options.lua
+MinimapButton.lua
+Commands.lua

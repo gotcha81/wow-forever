@@ -1,4 +1,4 @@
--- ClearTargetFrame: the unit frames (player, target, target of target, focus).
+-- CleanFrame: the unit frames (player, target, target of target, focus).
 --
 -- Each frame, top to bottom, inside a coloured border:
 --   name bar   : small, the name on the left, "Elite" / "Boss" on the right
@@ -102,10 +102,21 @@ end
 
 -- The game's own percent (0-100), or nil when the client can't give one.
 local function GamePercent(unit, kind)
-    local fn = kind == "health" and UnitHealthPercent or UnitPowerPercent
     local curve = CurveConstants and CurveConstants.ScaleTo100
-    if not fn or not curve then return nil end
-    local ok, pct = pcall(fn, unit, false, curve)
+    if not curve then return nil end
+    -- The two take different arguments (warcraft.wiki.gg):
+    --   UnitHealthPercent(unit [, usePredicted [, curve]])
+    --   UnitPowerPercent(unit [, powerType [, unmodified [, curve]]])
+    -- Without the curve in the right place the game returns 0-1 (full = "1%").
+    local ok, pct
+    if kind == "health" then
+        if not UnitHealthPercent then return nil end
+        ok, pct = pcall(UnitHealthPercent, unit, true, curve)
+    else
+        if not UnitPowerPercent then return nil end
+        local powerType = UnitPowerType(unit)
+        ok, pct = pcall(UnitPowerPercent, unit, powerType, false, curve)
+    end
     if ok then return pct end
 end
 
@@ -377,8 +388,88 @@ local function ShowPlaceholder(f)
     F:UpdateDebuffs(f, true) -- sample icons show where the debuffs will be
 end
 
+---------------------------------------------------------------------------------------
+-- Test mode: every frame shown with sample data (a different level colour, tag
+-- and power type on each), the health moving slowly, and sample debuffs, so all
+-- settings can be seen at once. Not saved; it ends when combat starts.
+---------------------------------------------------------------------------------------
+
+F.testMode = false
+
+local function PowerTypeColor(token, r, g, b)
+    local c = PowerBarColor and PowerBarColor[token]
+    if c then return c.r, c.g, c.b end
+    return r, g, b
+end
+
+local TEST = {
+    player       = { hp = 0.85, max = 12500, pmax = 8000, offset = 0 },
+    target       = { name = "Test Elite", tag = "|cffffd100Elite|r", color = { 1, 0.5, 0.25 },
+                     hp = 0.62, max = 48000, pmax = 100, power = "RAGE", offset = 1 },
+    targettarget = { name = "Test Boss", tag = "|cffff3030Boss|r", color = { 1, 0.1, 0.1 },
+                     hp = 0.35, max = 950000, pmax = 100, power = "ENERGY", offset = 2 },
+    focus        = { name = "Test Mob", tag = "", color = { 0.25, 0.75, 0.25 },
+                     hp = 0.9, max = 3200, pmax = 2400, power = "MANA", offset = 3 },
+    pet          = { name = "Test Pet", tag = "|cffc080ffMind controlled|r", color = { 1, 0.82, 0 },
+                     hp = 0.5, max = 6100, pmax = 1500, power = "MANA", offset = 4 },
+}
+
+local function ShowTest(f)
+    local s = ns.db.frames[f.unit]
+    local t = TEST[f.unit]
+    local wave = math.sin((GetTime() + t.offset * 1.7) * 0.8)
+    local hp = math.floor(t.max * math.max(0.02, math.min(1, t.hp + 0.15 * wave)))
+    local pw = math.floor(t.pmax * (0.5 + 0.4 * math.sin(GetTime() * 0.6 + t.offset)))
+
+    f.name:SetText(t.name or UnitName("player") or "Player")
+    f.class:SetText(t.tag or "")
+    f.health:SetMinMaxValues(0, t.max); f.health:SetValue(hp)
+    if s.healthColor == "class" and f.unit == "player" then
+        f.health:SetStatusBarColor(ClassColor("player"))
+    else
+        f.health:SetStatusBarColor(0, 0.8, 0)
+    end
+    f.healthLeft:SetText(BarText(s.healthLeft, hp, t.max))
+    f.healthRight:SetText(BarText(s.healthRight, hp, t.max))
+    f.power:SetMinMaxValues(0, t.pmax); f.power:SetValue(pw)
+    if t.power then
+        f.power:SetStatusBarColor(PowerTypeColor(t.power, 0.2, 0.4, 1))
+    else
+        f.power:SetStatusBarColor(PowerColor("player"))
+    end
+    f.powerLeft:SetText(BarText(s.powerLeft, pw, t.pmax))
+    f.powerRight:SetText(BarText(s.powerRight, pw, t.pmax))
+
+    local r, g, b
+    if s.border == "custom" then
+        r, g, b = s.color.r, s.color.g, s.color.b
+    elseif f.unit == "player" then
+        r, g, b = ClassColor("player")
+    else
+        r, g, b = t.color[1], t.color[2], t.color[3]
+    end
+    f.border:SetBackdropBorderColor(r, g, b, 1)
+    F:UpdateDebuffs(f, true)
+end
+
+function F:SetTestMode(on)
+    if InCombatLockdown() then
+        ns.Print("test mode can't be started in combat.")
+        return false
+    end
+    self.testMode = on and true or false
+    self:Refresh()
+    if self.testMode then
+        ns.Print("test mode on: every frame shows sample data. It ends when combat starts, or with /cfr test.")
+    else
+        ns.Print("test mode off.")
+    end
+    return true
+end
+
 function F:Draw(f)
     local unit = f.unit
+    if self.testMode then ShowTest(f); return end
     if not UnitExists(unit) then
         if not ns.db.locked then ShowPlaceholder(f) end
         return
@@ -487,13 +578,13 @@ local function ApplyLayout(f)
 end
 
 -- Shown / hidden. Locked: the game shows the frame only while its unit exists.
--- Unlocked: every enabled frame is shown, so it can be dragged.
+-- Unlocked or test mode: every enabled frame is shown.
 local function ApplyVisibility(f)
     local s = ns.db.frames[f.unit]
     UnregisterUnitWatch(f)
     if not s.shown then
         f:Hide()
-    elseif ns.db.locked then
+    elseif ns.db.locked and not F.testMode then
         RegisterUnitWatch(f)
     else
         f:Show()
@@ -582,7 +673,7 @@ local function SideTexts(bar, size)
 end
 
 local function CreateUnitFrame(unit)
-    local f = CreateFrame("Button", "ClearTargetFrame_" .. unit, UIParent, "SecureUnitButtonTemplate")
+    local f = CreateFrame("Button", "CleanFrame_" .. unit, UIParent, "SecureUnitButtonTemplate")
     f.unit = unit
     f:SetAttribute("unit", unit)
     f:SetAttribute("*type1", "target")
@@ -662,6 +753,13 @@ local UNIT_EVENTS = { "UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_POWER_UPDATE", "UNI
 local function OnEvent(_, event, unit)
     if event == "PLAYER_REGEN_ENABLED" then
         if layoutPending then F:Refresh() end
+    elseif event == "PLAYER_REGEN_DISABLED" then
+        -- Combat starts: end test mode now, while the frames can still be changed.
+        if F.testMode then
+            F.testMode = false
+            F:Refresh()
+            ns.Print("test mode ended: combat started.")
+        end
     elseif event == "PLAYER_TARGET_CHANGED" then
         F:Draw(frames.target); F:Draw(frames.targettarget)
     elseif event == "PLAYER_FOCUS_CHANGED" then
@@ -686,7 +784,7 @@ function F:Create()
     local ev = CreateFrame("Frame")
     for _, e in ipairs(UNIT_EVENTS) do pcall(ev.RegisterEvent, ev, e) end
     for _, e in ipairs({ "PLAYER_TARGET_CHANGED", "PLAYER_FOCUS_CHANGED", "PLAYER_LEVEL_UP",
-                         "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_ENABLED",
+                         "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED",
                          "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED" }) do
         pcall(ev.RegisterEvent, ev, e)
     end
@@ -697,6 +795,7 @@ function F:Create()
         elapsed = elapsed + dt
         if elapsed < 0.2 then return end
         elapsed = 0
+        if F.testMode then F:DrawAll(); return end -- the sample health moves
         -- focus too: when it is the same unit as the target, the game reports
         -- changes only for "target"
         if frames.targettarget:IsShown() then F:Draw(frames.targettarget) end

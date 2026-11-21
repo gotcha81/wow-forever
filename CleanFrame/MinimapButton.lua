@@ -1,4 +1,4 @@
--- ClearTargetFrame: minimap button. Left-click opens the settings, right-click
+-- CleanFrame: minimap button. Left-click opens the settings, right-click
 -- unlocks or locks the frames, drag moves it around the minimap.
 
 local _, ns = ...
@@ -15,7 +15,7 @@ end
 
 function B:Create()
     local db = ns.db.minimap
-    local b = CreateFrame("Button", "ClearTargetFrameMinimapButton", Minimap)
+    local b = CreateFrame("Button", "CleanFrameMinimapButton", Minimap)
     self.button = b
     b:SetSize(31, 31)
     b:SetFrameStrata("MEDIUM")
@@ -41,7 +41,9 @@ function B:Create()
     border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
 
     b:SetScript("OnClick", ns.Safe("minimap click", function(_, button)
-        if button == "RightButton" then
+        if IsShiftKeyDown() then
+            ns.Frames:SetTestMode(not ns.Frames.testMode)
+        elseif button == "RightButton" then
             local unlock = ns.db.locked
             if ns.Frames:SetLocked(not unlock) then
                 ns.Print(unlock and "frames unlocked: drag them. Right-click the minimap button again to lock."
@@ -53,10 +55,12 @@ function B:Create()
     end))
     b:SetScript("OnEnter", ns.Safe("minimap tooltip", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:SetText("ClearTargetFrame", 1, 0.82, 0)
+        GameTooltip:SetText("CleanFrame", 1, 0.82, 0)
         GameTooltip:AddLine("Left-click: open the settings", 0.8, 0.8, 0.8)
         GameTooltip:AddLine(ns.db.locked and "Right-click: unlock the frames to move them"
             or "Right-click: lock the frames", 0.8, 0.8, 0.8)
+        GameTooltip:AddLine(ns.Frames.testMode and "Shift-click: end test mode"
+            or "Shift-click: test mode (every frame with sample data)", 0.8, 0.8, 0.8)
         GameTooltip:AddLine("Drag: move this button", 0.8, 0.8, 0.8)
         GameTooltip:Show()
     end))

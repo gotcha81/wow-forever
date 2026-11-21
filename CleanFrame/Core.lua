@@ -1,4 +1,4 @@
--- ClearTargetFrame: core (namespace, saved settings, error log, events).
+-- CleanFrame: core (namespace, saved settings, error log, events).
 -- Everything lives in the private addon namespace `ns`. The only globals are the
 -- SavedVariables table, the slash commands, the Addon Compartment functions and a
 -- few uniquely named frames.
@@ -6,7 +6,7 @@
 local ADDON_NAME, ns = ...
 ns.ADDON_NAME = ADDON_NAME
 
-local PREFIX = "|cffffd100ClearTargetFrame|r: "
+local PREFIX = "|cffffd100CleanFrame|r: "
 
 function ns.Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage(PREFIX .. tostring(msg))
@@ -20,7 +20,7 @@ end
 -- Error log. Our own code runs through ns.Safe, so an error is logged instead of
 -- popping up every frame. The same error only counts up, the chat notice shows at
 -- most once per 10 seconds, at most 50 different errors are kept. It is saved in
--- ClearTargetFrameDB.errorLog. /ctf errors shows it, /ctf errors clear empties it.
+-- CleanFrameDB.errorLog. /cfr errors shows it, /cfr errors clear empties it.
 ---------------------------------------------------------------------------------------
 
 local MAX_ERRORS = 50
@@ -52,7 +52,7 @@ local function Record(where, info)
     local t = GetTime and GetTime() or 0
     if t - lastNotice > NOTICE_EVERY then
         lastNotice = t
-        ns.Print(("|cffff8040caught an error (%d different so far). Type /ctf errors to see them.|r"):format(#log))
+        ns.Print(("|cffff8040caught an error (%d different so far). Type /cfr errors to see them.|r"):format(#log))
     end
 end
 
@@ -91,8 +91,8 @@ end
 
 function ns.ErrorReport()
     local log = ErrorLog()
-    if #log == 0 then return "ClearTargetFrame " .. ns.Version() .. ": no errors recorded." end
-    local out = { ("ClearTargetFrame %s error log: %d different errors"):format(ns.Version(), #log) }
+    if #log == 0 then return "CleanFrame " .. ns.Version() .. ": no errors recorded." end
+    local out = { ("CleanFrame %s error log: %d different errors"):format(ns.Version(), #log) }
     for i, e in ipairs(log) do
         out[#out + 1] = ""
         out[#out + 1] = ("--- Error %d: %d %s (in %s, version %s, first %s, last %s) ---"):format(
@@ -111,7 +111,7 @@ end
 function ns.ShowCopy(title, text)
     local f = ns.copyFrame
     if not f then
-        f = CreateFrame("Frame", "ClearTargetFrameCopyFrame", UIParent, "BackdropTemplate")
+        f = CreateFrame("Frame", "CleanFrameCopyFrame", UIParent, "BackdropTemplate")
         f:SetSize(560, 380)
         f:SetPoint("CENTER")
         f:SetFrameStrata("DIALOG")
@@ -140,7 +140,7 @@ function ns.ShowCopy(title, text)
         box:SetScript("OnEscapePressed", function() f:Hide() end)
         scroll:SetScrollChild(box)
         f.box = box
-        tinsert(UISpecialFrames, "ClearTargetFrameCopyFrame")
+        tinsert(UISpecialFrames, "CleanFrameCopyFrame")
         ns.copyFrame = f
     end
     f.title:SetText(title)
@@ -224,10 +224,10 @@ events:RegisterEvent("PLAYER_LOGIN")
 local function OnEvent(self, event, arg1)
     if event == "ADDON_LOADED" then
         if arg1 ~= ADDON_NAME then return end
-        ClearTargetFrameDB = ClearTargetFrameDB or {}
+        CleanFrameDB = CleanFrameDB or {}
         -- Settings that used to be shared by all frames (sizes up to 0.2.4, texts and
         -- health colour up to 0.5.0): give each frame those values once.
-        local old = ClearTargetFrameDB
+        local old = CleanFrameDB
         local SHARED = { "width", "nameHeight", "healthHeight", "powerHeight", "borderSize",
                          "healthLeft", "healthRight", "powerLeft", "powerRight", "healthColor" }
         if type(old.frames) == "table" then
@@ -251,8 +251,8 @@ local function OnEvent(self, event, arg1)
         end
         for _, key in ipairs(SHARED) do old[key] = nil end
         old.perFrameDebuffs = true
-        ApplyDefaults(ClearTargetFrameDB, ns.defaults)
-        ns.db = ClearTargetFrameDB
+        ApplyDefaults(CleanFrameDB, ns.defaults)
+        ns.db = CleanFrameDB
         ns.db.healthText, ns.db.powerText = nil, nil -- 0.1.0 settings, replaced by left/right
         for _, e in ipairs(pendingErrors) do table.insert(ns.db.errorLog, e) end
         wipe(pendingErrors)
@@ -277,11 +277,11 @@ local CompartmentClick = ns.Safe("addon menu click", function() ns.Options:Open(
 local CompartmentEnter = ns.Safe("addon menu tooltip", function(_, button)
     local owner = button or (type(_) == "table" and _) or UIParent
     GameTooltip:SetOwner(owner, "ANCHOR_LEFT")
-    GameTooltip:SetText("ClearTargetFrame", 1, 0.82, 0)
+    GameTooltip:SetText("CleanFrame", 1, 0.82, 0)
     GameTooltip:AddLine("Click: open the settings", 0.8, 0.8, 0.8)
     GameTooltip:Show()
 end)
 
-function ClearTargetFrame_OnAddonCompartmentClick(...) CompartmentClick(...) end
-function ClearTargetFrame_OnAddonCompartmentEnter(...) CompartmentEnter(...) end
-function ClearTargetFrame_OnAddonCompartmentLeave() GameTooltip:Hide() end
+function CleanFrame_OnAddonCompartmentClick(...) CompartmentClick(...) end
+function CleanFrame_OnAddonCompartmentEnter(...) CompartmentEnter(...) end
+function CleanFrame_OnAddonCompartmentLeave() GameTooltip:Hide() end
