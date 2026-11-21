@@ -1,0 +1,32 @@
+## Interface: 16001
+## Title: QuestJournal
+## Notes: A journal for open-world quest chains in WoW Forever: every step from start to finish, your progress, XP and map pins. /qj
+## Author: gotcha81
+## Version: 0.1.0
+## IconTexture: Interface\Icons\INV_Misc_Book_11
+## OptionalDeps: Questie, QuestieDB
+## SavedVariables: QuestJournalDB
+## SavedVariablesPerCharacter: QuestJournalCharDB
+## AddonCompartmentFunc: QuestJournal_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: QuestJournal_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: QuestJournal_OnAddonCompartmentLeave
+## X-License: MIT
+## X-Website: https://github.com/gotcha81/wow-forever
+
+# Libraries (each keeps its own licence; see Libs/README.md)
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+Libs\HereBeDragons\HereBeDragons-2.0.lua
+Libs\HereBeDragons\HereBeDragons-Pins-2.0.lua
+
+# Core
+Core.lua
+Data.lua
+XP.lua
+Chains.lua
+
+# Interface
+UI\Window.lua
+UI\MapPins.lua
+UI\MinimapButton.lua
+Commands.lua
