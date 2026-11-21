@@ -27,7 +27,8 @@ Options > AddOns > CleanFrame. Right-click the minimap button to unlock or lock 
 **Test mode** (General tab, `/cfr test`, or Shift-click the minimap button) shows every
 frame with sample data: a different level colour, Elite/Boss/Mind controlled tag and power
 type on each, moving health and sample debuffs. Change settings while it runs to see them
-at once. It ends when combat starts.
+at once. It ends when you close the settings or combat starts. The Pet frame only
+ever shows while you have a pet (also in test mode and when unlocked).
 
 **Import / export** (General tab, `/cfr export`, `/cfr import`): all settings as one line
 of text, to keep or share. Importing only takes known settings; nothing in the text is run as code.

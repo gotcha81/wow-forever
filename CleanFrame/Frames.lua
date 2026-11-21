@@ -460,7 +460,7 @@ function F:SetTestMode(on)
     self.testMode = on and true or false
     self:Refresh()
     if self.testMode then
-        ns.Print("test mode on: every frame shows sample data. It ends when combat starts, or with /cfr test.")
+        ns.Print("test mode on: every frame shows sample data (the pet frame only with a pet). It ends when you close the settings, when combat starts, or with /cfr test.")
     else
         ns.Print("test mode off.")
     end
@@ -598,13 +598,14 @@ local function ApplyLayout(f)
 end
 
 -- Shown / hidden. Locked: the game shows the frame only while its unit exists.
--- Unlocked or test mode: every enabled frame is shown.
+-- Unlocked or test mode: every enabled frame is shown, except the pet frame,
+-- which shows only while you have a pet (or a mind-controlled unit).
 local function ApplyVisibility(f)
     local s = ns.db.frames[f.unit]
     UnregisterUnitWatch(f)
     if not s.shown then
         f:Hide()
-    elseif ns.db.locked and not F.testMode then
+    elseif (ns.db.locked and not F.testMode) or f.unit == "pet" then
         RegisterUnitWatch(f)
     else
         f:Show()

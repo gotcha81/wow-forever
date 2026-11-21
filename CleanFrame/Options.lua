@@ -250,7 +250,7 @@ function O:Create()
         function() return not db.locked end,
         function(v) return ns.Frames:SetLocked(not v) end)
     y = y - 28
-    Check(c, "Test mode: show every frame with sample data (ends when combat starts)", 12, y,
+    Check(c, "Test mode: show every frame with sample data (ends when you close the settings or combat starts)", 12, y,
         function() return ns.Frames.testMode end,
         function(v) return ns.Frames:SetTestMode(v) end)
     y = y - 28
@@ -373,6 +373,10 @@ function O:Create()
     panel:SetScript("OnShow", ns.Safe("options", function()
         for _, w in ipairs(widgets) do w:Load() end
         Select(O.selected or 1)
+    end))
+    -- Leaving the settings ends test mode, so the sample frames don't stay up.
+    panel:SetScript("OnHide", ns.Safe("options", function()
+        if ns.Frames.testMode and not InCombatLockdown() then ns.Frames:SetTestMode(false) end
     end))
 
     if Settings and Settings.RegisterCanvasLayoutCategory then
