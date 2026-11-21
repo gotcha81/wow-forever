@@ -2,7 +2,7 @@
 ## Title: QuestJournal
 ## Notes: A journal for open-world quest chains in WoW Forever: every step from start to finish, your progress, XP and map pins. /qj
 ## Author: gotcha81
-## Version: 0.1.0
+## Version: 0.1.1
 ## IconTexture: Interface\Icons\INV_Misc_Book_11
 ## OptionalDeps: Questie, QuestieDB
 ## SavedVariables: QuestJournalDB

@@ -57,6 +57,32 @@ local function Record(where, info)
     end
 end
 
+-- Catch-all: every Lua error whose message or stack points into this addon's
+-- folder goes into the log too, also errors outside ns.Safe (while the files
+-- load, in tooltips, ...). The handler that was there before (the game's error
+-- popup, or BugSack/BugGrabber) still gets every error, unchanged.
+do
+    local previous = geterrorhandler and geterrorhandler()
+    local busy = false
+    local PATTERN = "AddOns[\\/]" .. ADDON_NAME .. "[\\/]"
+    if seterrorhandler and type(previous) == "function" then
+        seterrorhandler(function(msg, ...)
+            if not busy then
+                busy = true
+                pcall(function()
+                    local text = tostring(msg)
+                    local stack = debugstack and debugstack(2, 20, 0) or ""
+                    if text:find(PATTERN) or stack:find(PATTERN) then
+                        Record("lua error", { message = text, stack = stack })
+                    end
+                end)
+                busy = false
+            end
+            return previous(msg, ...)
+        end)
+    end
+end
+
 function ns.Safe(where, fn)
     return function(...)
         local args, n = { ... }, select("#", ...)
@@ -255,18 +281,18 @@ events:SetScript("OnEvent", ns.Safe("events", OnEvent))
 -- Addon Compartment (the game's addon menu by the minimap). Named in the TOC.
 ---------------------------------------------------------------------------------------
 
-function QuestJournal_OnAddonCompartmentClick()
+local CompartmentClick = ns.Safe("addon menu click", function()
     if ns.Window then ns.Window:Toggle() end
-end
+end)
 
-function QuestJournal_OnAddonCompartmentEnter(_, button)
+local CompartmentEnter = ns.Safe("addon menu tooltip", function(_, button)
     local owner = button or (type(_) == "table" and _) or UIParent
     GameTooltip:SetOwner(owner, "ANCHOR_LEFT")
     GameTooltip:SetText("QuestJournal", 1, 0.82, 0)
     GameTooltip:AddLine("Click: open or close the journal", 0.8, 0.8, 0.8)
     GameTooltip:Show()
-end
+end)
 
-function QuestJournal_OnAddonCompartmentLeave()
-    GameTooltip:Hide()
-end
+function QuestJournal_OnAddonCompartmentClick(...) CompartmentClick(...) end
+function QuestJournal_OnAddonCompartmentEnter(...) CompartmentEnter(...) end
+function QuestJournal_OnAddonCompartmentLeave() GameTooltip:Hide() end
