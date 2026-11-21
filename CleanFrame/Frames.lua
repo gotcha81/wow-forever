@@ -216,16 +216,16 @@ local function Classification(unit)
     return ""
 end
 
--- "Name - level". Level -1 (too high to see, e.g. bosses) shows "??". Secret values
+-- "level name" (level first: it matters more). Level -1 (too high to see, e.g. bosses) shows "??". Secret values
 -- go straight to SetFormattedText, which can show them without reading them.
 local function SetNameLevel(f, name, level)
     if name == nil then f.name:SetText(""); return end
     if level == nil or (not IsSecret(level) and level == 0) then
         f.name:SetFormattedText("%s", name)
     elseif not IsSecret(level) and level < 0 then
-        f.name:SetFormattedText("%s - ??", name)
+        f.name:SetFormattedText("?? %s", name)
     else
-        f.name:SetFormattedText("%s - %s", name, level)
+        f.name:SetFormattedText("%s %s", level, name)
     end
 end
 

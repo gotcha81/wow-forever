@@ -3,7 +3,7 @@
 Clean, simple frames for **you, your target, your target's target, your focus and your pet**
 in WoW Forever. Each frame shows only:
 
-- a small **name bar**: "name - level" on the left (?? when the level is hidden, e.g. bosses), **Elite** or **Boss** on the right
+- a small **name bar**: "level name" on the left (?? as the level when it is hidden, e.g. bosses), **Elite** or **Boss** on the right
 - the **health bar**
 - the **power bar** (mana, rage, energy, ... in its own colour)
 - **debuffs** in rows outside the frame, under it (on by default for target and target
