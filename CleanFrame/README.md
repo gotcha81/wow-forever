@@ -43,6 +43,7 @@ Every frame tab has the same settings, so each frame is set up on its own:
 - **Health / power text**: a text on the left and one on the right of each bar, each
   none, remaining (`1234`), value (`1234 / 2000`), percent (`62%`) or both. Default: percent left, value right.
 - **Health colour**: green, or the class colour for players
+- **Bar style**: Solid (one flat colour, the default), Gradient, Glossy, Striped or Classic (the game's own bar look). Class and power colours work with every style. The textures are drawn by `tools/make_bar_textures.py`.
 - **Size**: width, name bar, health bar and power bar heights, border size and scale
 - **Position**: X and Y offset from the screen centre, with a slider or by typing the
   number (dragging the unlocked frame updates them too)

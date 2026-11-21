@@ -165,6 +165,7 @@ local function FrameDefaults(point, x, y, scale, debuffs)
         powerLeft    = "percent",
         powerRight   = "value",
         healthColor  = "green",   -- "green" or "class" (class colour for players)
+        barStyle     = "solid",   -- solid / gradient / glossy / striped / classic
         width        = 200,
         nameHeight   = 12,
         healthHeight = 22,

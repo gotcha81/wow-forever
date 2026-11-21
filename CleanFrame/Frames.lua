@@ -21,8 +21,17 @@ F.UNITS = { "player", "target", "targettarget", "focus", "pet" }
 F.LABELS = { player = "Player", target = "Target", targettarget = "Target of target", focus = "Focus",
              pet = "Pet" }
 
-local BAR_TEXTURE = "Interface\\TargetingFrame\\UI-StatusBar"
 local WHITE = "Interface\\Buttons\\WHITE8X8"
+local MEDIA = "Interface\\AddOns\\CleanFrame\\Media\\"
+-- Bar styles (the "Bar style" setting). All are tinted with the bar colour.
+F.BAR_STYLES = {
+    solid    = WHITE,                                   -- one flat colour (default)
+    gradient = MEDIA .. "BarGradient",                  -- light top, darker bottom
+    glossy   = MEDIA .. "BarGlossy",                    -- shine on the top half
+    striped  = MEDIA .. "BarStriped",                   -- faint diagonal stripes
+    classic  = "Interface\\TargetingFrame\\UI-StatusBar", -- the game's own bar look
+}
+local BAR_TEXTURE = WHITE
 local frames = {}
 F.frames = frames
 local layoutPending = false
@@ -555,6 +564,9 @@ local function ApplyLayout(f)
     local db = ns.db.frames[f.unit] -- every size is per frame
     local s = db
     local b = db.borderSize
+    local tex = F.BAR_STYLES[db.barStyle] or F.BAR_STYLES.solid
+    f.health:SetStatusBarTexture(tex)
+    f.power:SetStatusBarTexture(tex)
     f:SetScale(s.scale)
     f:SetSize(db.width + 2 * b, db.nameHeight + db.healthHeight + db.powerHeight + 2 * b + 2)
     f:ClearAllPoints()

@@ -11,6 +11,10 @@ local TEXT_CHOICES = {
     { "percent", "Percent (62%)" }, { "both", "Both (1234 / 2000  (62%))" },
 }
 local HEALTH_COLORS = { { "green", "Green" }, { "class", "Class colour for players" } }
+local BAR_STYLES = {
+    { "solid", "Solid" }, { "gradient", "Gradient" }, { "glossy", "Glossy" },
+    { "striped", "Striped" }, { "classic", "Classic (the game's look)" },
+}
 local BORDER_MODES = {
     { "auto", "Level colour" }, -- on the player frame: class colour
     { "custom", "Custom colour" },
@@ -315,6 +319,9 @@ function O:Create()
         end
         Cycle(c, "Health colour", 16, y, 220, HEALTH_COLORS,
             function() return fs.healthColor end, function(v) fs.healthColor = v end)
+        y = y - 28
+        Cycle(c, "Bar style", 16, y, 220, BAR_STYLES,
+            function() return fs.barStyle end, function(v) fs.barStyle = v end)
         y = y - 36
 
         Label(c, "Size", 12, y, "GameFontNormal")

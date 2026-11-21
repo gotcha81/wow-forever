@@ -7,6 +7,7 @@ Multiple wow-forever addons under one repository for anyone who wish to use it.
   client (TOC interface number, Lua syntax, saved errors, game API used).
   Add `--apply` to write the game's interface number into every TOC.
 - `python tools/read_errors.py <Addon>`: an addon's caught Lua errors.
+- `python tools/make_bar_textures.py CleanFrame`: draws CleanFrame's bar textures (Media/).
 - `tools/deploy.ps1 -Addon <Addon>`: copy an addon into the game (path in the git-ignored
   `tools/deploy.local.json`).
 - Claude Code skill `/update-addons` (`.claude/skills/update-addons`): runs the whole
