@@ -19,7 +19,7 @@ local ANCHORS = { TOPLEFT = true, TOP = true, TOPRIGHT = true, LEFT = true, CENT
 local LIMITS = {
     width = { 100, 400 }, nameHeight = { 8, 24 }, healthHeight = { 8, 60 }, powerHeight = { 3, 40 },
     borderSize = { 1, 6 }, scale = { 0.5, 2 }, max = { 1, 40 }, size = { 12, 40 }, perRow = { 2, 20 },
-    angle = { 0, 360 }, r = { 0, 1 }, g = { 0, 1 }, b = { 0, 1 },
+    angle = { 0, 360 }, healTransparency = { 0, 100 }, costTransparency = { 0, 100 }, r = { 0, 1 }, g = { 0, 1 }, b = { 0, 1 },
 }
 
 ---------------------------------------------------------------------------------------

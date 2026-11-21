@@ -166,6 +166,12 @@ local function FrameDefaults(point, x, y, scale, debuffs)
         powerRight   = "value",
         healthColor  = "green",   -- "green" or "class" (class colour for players)
         barStyle     = "solid",   -- solid / gradient / glossy / striped / classic
+        -- Incoming heals on the health bar and the cost of your own cast on the power
+        -- bar, both drawn see-through (0 = solid, 100 = invisible).
+        healPrediction   = true,
+        healTransparency = 50,
+        powerCost        = true,
+        costTransparency = 50,
         width        = 200,
         nameHeight   = 12,
         healthHeight = 22,

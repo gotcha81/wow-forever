@@ -44,6 +44,8 @@ Every frame tab has the same settings, so each frame is set up on its own:
   none, remaining (`1234`), value (`1234 / 2000`), percent (`62%`) or both. Default: percent left, value right.
 - **Health colour**: green, or the class colour for players
 - **Bar style**: Solid (one flat colour, the default), Gradient, Glossy, Striped or Classic (the game's own bar look). Class and power colours work with every style. The textures are drawn by `tools/make_bar_textures.py`.
+- **Incoming heals**: heals on the way show as an extra piece after the health, in the health colour, 50% see-through (adjustable, on/off per frame).
+- **Spell cost**: while you cast, the part of your mana (rage, energy) the spell will use turns 50% see-through on the player power bar (adjustable, on/off). Instant spells have no cast, so nothing shows for them.
 - **Size**: width, name bar, health bar and power bar heights, border size and scale
 - **Position**: X and Y offset from the screen centre, with a slider or by typing the
   number (dragging the unlocked frame updates them too)

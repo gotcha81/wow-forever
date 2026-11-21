@@ -324,6 +324,22 @@ function O:Create()
             function() return fs.barStyle end, function(v) fs.barStyle = v end)
         y = y - 36
 
+        -- What is about to change: heals on the way, and the cost of the spell being cast.
+        Label(c, "Incoming heals and spell cost", 12, y, "GameFontNormal")
+        y = y - 24
+        Check(c, "Show incoming heals on the health bar", 16, y, function() return fs.healPrediction end,
+            function(v) fs.healPrediction = v; Changed() end)
+        y = y - 28
+        Slider(c, "Heal transparency %", 16, y, 0, 100, 5,
+            function() return fs.healTransparency end, function(v) fs.healTransparency = v end)
+        y = y - 28
+        Check(c, "Show the cost of the spell you're casting on the power bar", 16, y,
+            function() return fs.powerCost end, function(v) fs.powerCost = v; Changed() end)
+        y = y - 28
+        Slider(c, "Cost transparency %", 16, y, 0, 100, 5,
+            function() return fs.costTransparency end, function(v) fs.costTransparency = v end)
+        y = y - 36
+
         Label(c, "Size", 12, y, "GameFontNormal")
         y = y - 24
         for _, s in ipairs(SIZES) do

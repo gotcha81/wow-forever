@@ -390,9 +390,66 @@ end
 -- Drawing one frame
 ---------------------------------------------------------------------------------------
 
+---------------------------------------------------------------------------------------
+-- Incoming heals and spell cost. Both are extra bars laid over the health / power
+-- bar and anchored to the end of its fill, so no maths on the (secret) values is
+-- needed: the game sizes them from the same max as the bar under them.
+--   heal: starts where the health ends, health colour, see-through.
+--   cost: ends where the power ends (fills to the left), the bar's background
+--         colour laid over the fill, so that part of the power looks see-through.
+---------------------------------------------------------------------------------------
+
+F.castCost, F.castGUID = nil, nil -- the spell you're casting now and its cost
+
+local GetCost = (C_Spell and C_Spell.GetSpellPowerCost) or GetSpellPowerCost
+
+local function CastCost(spellID)
+    if not spellID or not GetCost then return nil end
+    local ok, costs = pcall(GetCost, spellID)
+    local ptype = UnitPowerType("player")
+    if not ok or type(costs) ~= "table" or IsSecret(ptype) then return nil end
+    for _, c in ipairs(costs) do
+        if type(c) == "table" and not IsSecret(c.type) and c.type == ptype then
+            local cost = c.cost
+            if IsSecret(cost) then return cost end
+            if type(cost) == "number" and cost > 0 then return cost end
+        end
+    end
+    return nil
+end
+
+local function SetHealthColor(f, r, g, b)
+    f.health:SetStatusBarColor(r, g, b)
+    f.heal:SetStatusBarColor(r, g, b, 1 - ns.db.frames[f.unit].healTransparency / 100)
+end
+
+local function ShowHeal(f, amount, max)
+    if not ns.db.frames[f.unit].healPrediction or amount == nil then f.heal:Hide(); return end
+    f.heal:SetMinMaxValues(0, max)
+    f.heal:SetValue(amount)
+    f.heal:Show()
+end
+
+local function ShowCost(f, cost, max)
+    local db = ns.db.frames[f.unit]
+    if not db.powerCost or cost == nil then f.cost:Hide(); return end
+    f.cost:SetMinMaxValues(0, max)
+    f.cost:SetValue(cost)
+    f.cost:SetStatusBarColor(0.1, 0.1, 0.1, db.costTransparency / 100)
+    f.cost:Show()
+end
+
+local function IncomingHeals(unit)
+    if not UnitGetIncomingHeals then return nil end
+    local ok, v = pcall(UnitGetIncomingHeals, unit)
+    if ok then return v end
+    return nil
+end
+
 local function ShowPlaceholder(f)
     -- Unlocked and nothing to show: a sample so the frame can be placed.
     local s = ns.db.frames[f.unit]
+    f.heal:Hide(); f.cost:Hide()
     f.name:SetText(F.LABELS[f.unit])
     f.class:SetText(f.unit == "player" and "" or "|cffffd100Elite|r")
     f.health:SetMinMaxValues(0, 100); f.health:SetValue(75)
@@ -447,10 +504,12 @@ local function ShowTest(f)
     f.class:SetText(t.tag or "")
     f.health:SetMinMaxValues(0, t.max); f.health:SetValue(hp)
     if s.healthColor == "class" and f.unit == "player" then
-        f.health:SetStatusBarColor(ClassColor("player"))
+        SetHealthColor(f, ClassColor("player"))
     else
-        f.health:SetStatusBarColor(0, 0.8, 0)
+        SetHealthColor(f, 0, 0.8, 0)
     end
+    ShowHeal(f, math.floor(t.max * 0.12), t.max)                          -- sample heal on the way
+    ShowCost(f, f.unit == "player" and math.floor(t.pmax * 0.15) or nil, t.pmax) -- sample cast
     f.healthLeft:SetText(BarText(s.healthLeft, hp, t.max))
     f.healthRight:SetText(BarText(s.healthRight, hp, t.max))
     f.power:SetMinMaxValues(0, t.pmax); f.power:SetValue(pw)
@@ -510,10 +569,11 @@ function F:Draw(f)
     f.health:SetMinMaxValues(0, SafeMax(hpMax))
     f.health:SetValue(hp)
     if db.healthColor == "class" and Flag(UnitIsPlayer, unit) then
-        f.health:SetStatusBarColor(ClassColor(unit))
+        SetHealthColor(f, ClassColor(unit))
     else
-        f.health:SetStatusBarColor(0, 0.8, 0)
+        SetHealthColor(f, 0, 0.8, 0)
     end
+    ShowHeal(f, IncomingHeals(unit), SafeMax(hpMax))
     local status
     if UnitIsConnected and not Flag(UnitIsConnected, unit) and Flag(UnitIsPlayer, unit) then
         status = "Offline"
@@ -523,6 +583,7 @@ function F:Draw(f)
         status = "Dead"
     end
     if status then
+        f.heal:Hide()
         f.healthLeft:SetText(status)
         f.healthRight:SetText("")
     else
@@ -535,6 +596,7 @@ function F:Draw(f)
     f.power:SetMinMaxValues(0, SafeMax(pwMax))
     f.power:SetValue(pw)
     f.power:SetStatusBarColor(PowerColor(unit))
+    ShowCost(f, unit == "player" and F.castCost or nil, SafeMax(pwMax))
     SetBarText(f.powerLeft, db.powerLeft, pw, pwMax, pwUnit, "power")
     SetBarText(f.powerRight, db.powerRight, pw, pwMax, pwUnit, "power")
 
@@ -567,6 +629,18 @@ local function ApplyLayout(f)
     local tex = F.BAR_STYLES[db.barStyle] or F.BAR_STYLES.solid
     f.health:SetStatusBarTexture(tex)
     f.power:SetStatusBarTexture(tex)
+    f.heal:SetStatusBarTexture(tex)
+    -- the overlays hang off the end of the fill (set again in case the bar made a
+    -- new fill texture) and are as wide as the whole bar
+    local hpFill, pwFill = f.health:GetStatusBarTexture(), f.power:GetStatusBarTexture()
+    f.heal:ClearAllPoints()
+    f.heal:SetPoint("TOPLEFT", hpFill, "TOPRIGHT")
+    f.heal:SetPoint("BOTTOMLEFT", hpFill, "BOTTOMRIGHT")
+    f.heal:SetWidth(db.width)
+    f.cost:ClearAllPoints()
+    f.cost:SetPoint("TOPRIGHT", pwFill, "TOPRIGHT")
+    f.cost:SetPoint("BOTTOMRIGHT", pwFill, "BOTTOMRIGHT")
+    f.cost:SetWidth(db.width)
     f:SetScale(s.scale)
     f:SetSize(db.width + 2 * b, db.nameHeight + db.healthHeight + db.powerHeight + 2 * b + 2)
     f:ClearAllPoints()
@@ -707,11 +781,26 @@ local function NewBar(parent)
     bar.bg = bar:CreateTexture(nil, "BACKGROUND")
     bar.bg:SetAllPoints()
     bar.bg:SetColorTexture(0.1, 0.1, 0.1, 0.8)
+    bar:SetClipsChildren(true) -- heal / cost overlays never show outside the bar
     return bar
 end
 
--- A text on the left and one on the right of a bar.
+-- An extra bar on top of `bar` (incoming heals, spell cost); anchored in ApplyLayout.
+local function NewOverlay(bar, reverse)
+    local o = CreateFrame("StatusBar", nil, bar)
+    o:SetFrameLevel(bar:GetFrameLevel() + 1)
+    o:SetStatusBarTexture(WHITE)
+    if reverse then o:SetReverseFill(true) end
+    o:Hide()
+    return o
+end
+
+-- A text on the left and one on the right of a bar (on a layer above the overlays).
 local function SideTexts(bar, size)
+    local holder = CreateFrame("Frame", nil, bar)
+    holder:SetAllPoints()
+    holder:SetFrameLevel(bar:GetFrameLevel() + 3)
+    bar = holder
     local left = bar:CreateFontString(nil, "OVERLAY")
     left:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE")
     left:SetPoint("LEFT", 4, 0)
@@ -759,9 +848,11 @@ local function CreateUnitFrame(unit)
     f.name:SetPoint("RIGHT", f.class, "LEFT", -4, 0)
 
     f.health = NewBar(f)
+    f.heal = NewOverlay(f.health, false)
     f.healthLeft, f.healthRight = SideTexts(f.health, 11)
 
     f.power = NewBar(f)
+    f.cost = NewOverlay(f.power, true)
     f.powerLeft, f.powerRight = SideTexts(f.power, 9)
 
     f.dragHint = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -799,10 +890,30 @@ end
 
 local UNIT_EVENTS = { "UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_POWER_UPDATE", "UNIT_POWER_FREQUENT",
                       "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER", "UNIT_NAME_UPDATE", "UNIT_LEVEL",
-                      "UNIT_CLASSIFICATION_CHANGED", "UNIT_CONNECTION", "UNIT_FACTION", "UNIT_TARGET", "UNIT_PET", "UNIT_AURA" }
+                      "UNIT_CLASSIFICATION_CHANGED", "UNIT_CONNECTION", "UNIT_FACTION", "UNIT_TARGET", "UNIT_PET", "UNIT_AURA",
+                      "UNIT_HEAL_PREDICTION" }
+local CAST_EVENTS = { "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED",
+                      "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_SUCCEEDED" }
 
-local function OnEvent(_, event, unit)
-    if event == "PLAYER_REGEN_ENABLED" then
+-- Same cast? (castGUIDs may be hidden from addons: then assume it is.)
+local function SameCast(guid)
+    if IsSecret(guid) or IsSecret(F.castGUID) or guid == nil or F.castGUID == nil then return true end
+    return guid == F.castGUID
+end
+
+local function OnEvent(_, event, unit, castGUID, spellID)
+    if event == "UNIT_SPELLCAST_START" then
+        if unit == "player" then
+            F.castCost, F.castGUID = CastCost(spellID), castGUID
+            F:Draw(frames.player)
+        end
+    elseif event:sub(1, 15) == "UNIT_SPELLCAST_" then
+        -- the cast ended; a failed try at another spell during the cast doesn't count
+        if unit == "player" and F.castCost ~= nil and SameCast(castGUID) then
+            F.castCost, F.castGUID = nil, nil
+            F:Draw(frames.player)
+        end
+    elseif event == "PLAYER_REGEN_ENABLED" then
         if layoutPending then F:Refresh() end
     elseif event == "PLAYER_REGEN_DISABLED" then
         -- Combat starts: end test mode now, while the frames can still be changed.
@@ -834,6 +945,9 @@ function F:Create()
 
     local ev = CreateFrame("Frame")
     for _, e in ipairs(UNIT_EVENTS) do pcall(ev.RegisterEvent, ev, e) end
+    local cast = CreateFrame("Frame") -- your own casts only
+    for _, e in ipairs(CAST_EVENTS) do pcall(cast.RegisterUnitEvent, cast, e, "player") end
+    cast:SetScript("OnEvent", ns.Safe("cast events", OnEvent))
     for _, e in ipairs({ "PLAYER_TARGET_CHANGED", "PLAYER_FOCUS_CHANGED", "PLAYER_LEVEL_UP",
                          "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED",
                          "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED" }) do
