@@ -116,7 +116,7 @@ local function Display(v)
 end
 
 -- Shown where a number can't be read (yet).
-local UNKNOWN = "-"
+local UNKNOWN = ""  -- the user prefers an empty space over "-"
 
 local function SetBarText(fs, mode, cur, max, unit, kind)
     if not IsSecret(cur) and not IsSecret(max) then
