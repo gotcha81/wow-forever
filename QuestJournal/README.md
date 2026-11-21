@@ -13,7 +13,7 @@ it, and **[+] next quests** opens the ones after it. Every quest shows its XP, a
 the chain shows the XP for the whole chain (and how much is left). Hover a quest to
 see its objectives, the quest giver, where to hand it in, and its rewards.
 
-- **Key icon**: the chain rewards a key (shown on the chain and all of its quests).
+- **Key icon**: on the quest that rewards a key, and on its chain.
 - **Map button**: marks where the quest starts (S) and where you hand it in (E) on
   the world map and minimap. Click it again, right-click a pin, or type `/qj clear` to remove them.
 - **Faction button**: shows chains for your faction, Horde, Alliance, or both.

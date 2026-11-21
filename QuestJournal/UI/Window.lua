@@ -8,7 +8,7 @@
 -- An open chain shows the step you are on, with "[+] N earlier quests" above it
 -- and "[+] N next quests" below it; each opens on its own. Every step shows its
 -- XP, the chain header shows the XP of the whole chain. A key icon marks chains
--- that reward a key (on the chain and on every one of its quests). The map button
+-- that reward a key (on the chain and on the quest that gives the key). The map button
 -- on a step puts its start and finish on the world map and minimap.
 
 local ADDON_NAME, ns = ...
@@ -352,7 +352,7 @@ local function StepRow(line, i, isCurrent)
     else
         sub = "Install Questie to see who gives and takes this quest."
     end
-    return { type = "step", line = line, index = i, key = line.hasKey, text = text, sub = sub,
+    return { type = "step", line = line, index = i, key = line.keyOf[id], text = text, sub = sub,
              right = XPText(xp, est), mapButton = D.questie, pinned = ns.MapPins.questId == id }
 end
 
