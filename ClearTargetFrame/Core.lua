@@ -185,6 +185,7 @@ ns.defaults = {
         target       = FrameDefaults("TOPLEFT", 260, -20, 1),
         targettarget = FrameDefaults("TOPLEFT", 480, -40, 0.75),
         focus        = FrameDefaults("TOPLEFT", 260, -110, 0.9),
+        pet          = FrameDefaults("TOPLEFT", 20, -90, 0.8), -- also a mind-controlled unit
     },
     errorLog = {},
 }

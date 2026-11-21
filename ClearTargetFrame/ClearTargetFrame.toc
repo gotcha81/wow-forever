@@ -1,8 +1,8 @@
 ## Interface: 16001
 ## Title: ClearTargetFrame
-## Notes: Clean player, target, target-of-target and focus frames: name, elite/boss, health and power, with a level-coloured border. /ctf
+## Notes: Clean player, target, target-of-target, focus and pet frames: name, elite/boss, health and power, with a level-coloured border. /ctf
 ## Author: gotcha81
-## Version: 0.3.0
+## Version: 0.4.0
 ## IconTexture: Interface\Icons\Ability_Hunter_MarkedForDeath
 ## SavedVariables: ClearTargetFrameDB
 ## AddonCompartmentFunc: ClearTargetFrame_OnAddonCompartmentClick

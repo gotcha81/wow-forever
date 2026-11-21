@@ -1,6 +1,6 @@
 # ClearTargetFrame
 
-Clean, simple frames for **you, your target, your target's target and your focus**
+Clean, simple frames for **you, your target, your target's target, your focus and your pet**
 in WoW Forever. Each frame shows only:
 
 - a small **name bar**: the name on the left, **Elite** or **Boss** on the right
@@ -12,7 +12,10 @@ yellow, orange or red. Your own frame uses your class colour. Each frame can use
 custom colour instead.
 
 Left-click a frame to target the unit, right-click it for the unit's menu (also in
-combat). The game's own player, target, target-of-target and focus frames are hidden.
+combat). The game's own player, target, target-of-target, focus and pet frames are hidden.
+
+**Mind control**: the game has no separate frame for it; the unit you control becomes
+your pet. The Pet frame shows it and marks it **Mind controlled**.
 
 ## Settings
 

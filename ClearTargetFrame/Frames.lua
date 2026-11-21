@@ -15,8 +15,11 @@ local _, ns = ...
 local F = {}
 ns.Frames = F
 
-F.UNITS = { "player", "target", "targettarget", "focus" }
-F.LABELS = { player = "Player", target = "Target", targettarget = "Target of target", focus = "Focus" }
+-- "pet" is also the unit you control with Mind Control or another possess:
+-- the game has no separate frame or unit for that (its own pet frame shows it).
+F.UNITS = { "player", "target", "targettarget", "focus", "pet" }
+F.LABELS = { player = "Player", target = "Target", targettarget = "Target of target", focus = "Focus",
+             pet = "Pet" }
 
 local BAR_TEXTURE = "Interface\\TargetingFrame\\UI-StatusBar"
 local WHITE = "Interface\\Buttons\\WHITE8X8"
@@ -241,7 +244,11 @@ function F:Draw(f)
     local db = ns.db
 
     f.name:SetText(UnitName(unit) or "")
-    f.class:SetText(Classification(unit))
+    local tag = Classification(unit)
+    if unit == "pet" and (Flag(UnitIsPossessed, "pet") or Flag(UnitIsCharmed, "pet")) then
+        tag = (tag ~= "" and (tag .. "  ") or "") .. "|cffc080ffMind controlled|r"
+    end
+    f.class:SetText(tag)
 
     -- health
     local hp, hpMax, hpUnit = Values(unit, "health")
@@ -477,7 +484,7 @@ end
 local function HideBlizzard()
     local hidden = CreateFrame("Frame")
     hidden:Hide()
-    for _, name in ipairs({ "PlayerFrame", "TargetFrame", "FocusFrame", "TargetFrameToT" }) do
+    for _, name in ipairs({ "PlayerFrame", "TargetFrame", "FocusFrame", "TargetFrameToT", "PetFrame" }) do
         local frame = _G[name]
         if frame then
             pcall(frame.SetParent, frame, hidden)
@@ -493,7 +500,7 @@ end
 
 local UNIT_EVENTS = { "UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_POWER_UPDATE", "UNIT_POWER_FREQUENT",
                       "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER", "UNIT_NAME_UPDATE", "UNIT_LEVEL",
-                      "UNIT_CLASSIFICATION_CHANGED", "UNIT_CONNECTION", "UNIT_FACTION", "UNIT_TARGET" }
+                      "UNIT_CLASSIFICATION_CHANGED", "UNIT_CONNECTION", "UNIT_FACTION", "UNIT_TARGET", "UNIT_PET" }
 
 local function OnEvent(_, event, unit)
     if event == "PLAYER_REGEN_ENABLED" then
@@ -506,6 +513,8 @@ local function OnEvent(_, event, unit)
         F:Draw(frames.target); F:Draw(frames.focus) -- numbers may now be readable (or not)
     elseif event == "PLAYER_LEVEL_UP" or event == "PLAYER_ENTERING_WORLD" then
         F:DrawAll() -- the level colours depend on your level
+    elseif event == "UNIT_PET" then
+        if unit == "player" then F:Draw(frames.pet) end -- pet summoned, dismissed or mind control
     elseif event == "UNIT_TARGET" then
         if unit == "target" then F:Draw(frames.targettarget) end
     elseif unit and frames[unit] then
@@ -535,6 +544,7 @@ function F:Create()
         -- changes only for "target"
         if frames.targettarget:IsShown() then F:Draw(frames.targettarget) end
         if frames.focus:IsShown() then F:Draw(frames.focus) end
+        if frames.pet:IsShown() then F:Draw(frames.pet) end -- catches mind control starting or ending
     end)
     ev:SetScript("OnUpdate", Tick)
 
