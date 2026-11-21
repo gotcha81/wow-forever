@@ -2,7 +2,8 @@
 --
 -- Each frame, top to bottom, inside a coloured border:
 --   name bar   : small, the name on the left, "Elite" / "Boss" on the right
---   health bar : text per the settings (none / value / percent / both)
+--   health bar : text on the left and on the right, each none / value / percent / both
+--                (default: percent left, value right)
 --   power bar  : mana, rage, energy, ... in its own colour, same text choices
 --
 -- The frames are secure unit buttons, so left-click targets and right-click opens
@@ -104,10 +105,12 @@ local function ShowPlaceholder(f)
     f.class:SetText(f.unit == "player" and "" or "|cffffd100Elite|r")
     f.health:SetMinMaxValues(0, 100); f.health:SetValue(75)
     f.health:SetStatusBarColor(0, 0.8, 0)
-    f.healthText:SetText(BarText(ns.db.healthText, 7500, 10000))
+    f.healthLeft:SetText(BarText(ns.db.healthLeft, 7500, 10000))
+    f.healthRight:SetText(BarText(ns.db.healthRight, 7500, 10000))
     f.power:SetMinMaxValues(0, 100); f.power:SetValue(50)
     f.power:SetStatusBarColor(0, 0.44, 0.87)
-    f.powerText:SetText(BarText(ns.db.powerText, 500, 1000))
+    f.powerLeft:SetText(BarText(ns.db.powerLeft, 500, 1000))
+    f.powerRight:SetText(BarText(ns.db.powerRight, 500, 1000))
     local r, g, b = 1, 0.82, 0
     if s.border == "custom" then r, g, b = s.color.r, s.color.g, s.color.b
     elseif f.unit == "player" then r, g, b = ClassColor("player") end
@@ -134,14 +137,20 @@ function F:Draw(f)
     else
         f.health:SetStatusBarColor(0, 0.8, 0)
     end
+    local status
     if UnitIsConnected and not UnitIsConnected(unit) then
-        f.healthText:SetText("Offline")
+        status = "Offline"
     elseif UnitIsGhost(unit) then
-        f.healthText:SetText("Ghost")
+        status = "Ghost"
     elseif UnitIsDead(unit) then
-        f.healthText:SetText("Dead")
+        status = "Dead"
+    end
+    if status then
+        f.healthLeft:SetText(status)
+        f.healthRight:SetText("")
     else
-        f.healthText:SetText(BarText(db.healthText, hp, hpMax))
+        f.healthLeft:SetText(BarText(db.healthLeft, hp, hpMax))
+        f.healthRight:SetText(BarText(db.healthRight, hp, hpMax))
     end
 
     -- power (mana, rage, energy, ...)
@@ -149,7 +158,8 @@ function F:Draw(f)
     f.power:SetMinMaxValues(0, pwMax > 0 and pwMax or 1)
     f.power:SetValue(pwMax > 0 and pw or 0)
     f.power:SetStatusBarColor(PowerColor(unit))
-    f.powerText:SetText(BarText(db.powerText, pw, pwMax))
+    f.powerLeft:SetText(BarText(db.powerLeft, pw, pwMax))
+    f.powerRight:SetText(BarText(db.powerRight, pw, pwMax))
 
     f.border:SetBackdropBorderColor(BorderColor(unit, db.frames[unit]))
 end
@@ -187,14 +197,19 @@ local function ApplyLayout(f)
     f.health:SetPoint("TOPLEFT", f.nameBar, "BOTTOMLEFT", 0, -1)
     f.health:SetPoint("TOPRIGHT", f.nameBar, "BOTTOMRIGHT", 0, -1)
     f.health:SetHeight(db.healthHeight)
-    f.healthText:SetFont(STANDARD_TEXT_FONT, math.max(8, math.min(14, db.healthHeight - 6)), "OUTLINE")
+    local hpFont = math.max(8, math.min(14, db.healthHeight - 6))
+    f.healthLeft:SetFont(STANDARD_TEXT_FONT, hpFont, "OUTLINE")
+    f.healthRight:SetFont(STANDARD_TEXT_FONT, hpFont, "OUTLINE")
 
     f.power:ClearAllPoints()
     f.power:SetPoint("TOPLEFT", f.health, "BOTTOMLEFT", 0, -1)
     f.power:SetPoint("TOPRIGHT", f.health, "BOTTOMRIGHT", 0, -1)
     f.power:SetHeight(db.powerHeight)
-    f.powerText:SetFont(STANDARD_TEXT_FONT, math.max(7, math.min(12, db.powerHeight - 1)), "OUTLINE")
-    f.powerText:SetShown(db.powerHeight >= 8)
+    local pwFont = math.max(7, math.min(12, db.powerHeight - 1))
+    f.powerLeft:SetFont(STANDARD_TEXT_FONT, pwFont, "OUTLINE")
+    f.powerRight:SetFont(STANDARD_TEXT_FONT, pwFont, "OUTLINE")
+    f.powerLeft:SetShown(db.powerHeight >= 8)  -- too thin for text below that
+    f.powerRight:SetShown(db.powerHeight >= 8)
 end
 
 -- Shown / hidden. Locked: the game shows the frame only while its unit exists.
@@ -279,6 +294,19 @@ local function NewBar(parent)
     return bar
 end
 
+-- A text on the left and one on the right of a bar.
+local function SideTexts(bar, size)
+    local left = bar:CreateFontString(nil, "OVERLAY")
+    left:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE")
+    left:SetPoint("LEFT", 4, 0)
+    left:SetJustifyH("LEFT")
+    local right = bar:CreateFontString(nil, "OVERLAY")
+    right:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE")
+    right:SetPoint("RIGHT", -4, 0)
+    right:SetJustifyH("RIGHT")
+    return left, right
+end
+
 local function CreateUnitFrame(unit)
     local f = CreateFrame("Button", "ClearTargetFrame_" .. unit, UIParent, "SecureUnitButtonTemplate")
     f.unit = unit
@@ -315,14 +343,10 @@ local function CreateUnitFrame(unit)
     f.name:SetPoint("RIGHT", f.class, "LEFT", -4, 0)
 
     f.health = NewBar(f)
-    f.healthText = f.health:CreateFontString(nil, "OVERLAY")
-    f.healthText:SetFont(STANDARD_TEXT_FONT, 11, "OUTLINE")
-    f.healthText:SetPoint("CENTER")
+    f.healthLeft, f.healthRight = SideTexts(f.health, 11)
 
     f.power = NewBar(f)
-    f.powerText = f.power:CreateFontString(nil, "OVERLAY")
-    f.powerText:SetFont(STANDARD_TEXT_FONT, 9, "OUTLINE")
-    f.powerText:SetPoint("CENTER")
+    f.powerLeft, f.powerRight = SideTexts(f.power, 9)
 
     f.dragHint = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     f.dragHint:SetPoint("BOTTOM", f, "TOP", 0, 2)

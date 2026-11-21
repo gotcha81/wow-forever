@@ -187,6 +187,10 @@ function O:Create()
         function() return db.hideBlizzard end,
         function(v) db.hideBlizzard = v; ns.Print("type /reload to apply this.") end)
     y = y - 28
+    Check(c, "Show the minimap button", 12, y,
+        function() return db.minimap.shown end,
+        function(v) ns.MinimapButton:SetShown(v) end)
+    y = y - 28
     local reset = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
     reset:SetSize(140, 22)
     reset:SetPoint("TOPLEFT", 16, y)
@@ -196,12 +200,14 @@ function O:Create()
 
     Label(c, "Bars", 12, y, "GameFontNormal")
     y = y - 24
-    Cycle(c, "Health text", 16, y, 220, TEXT_CHOICES,
-        function() return db.healthText end, function(v) db.healthText = v end)
-    y = y - 28
-    Cycle(c, "Power text", 16, y, 220, TEXT_CHOICES,
-        function() return db.powerText end, function(v) db.powerText = v end)
-    y = y - 28
+    for _, t in ipairs({
+        { "Health text, left", "healthLeft" }, { "Health text, right", "healthRight" },
+        { "Power text, left", "powerLeft" }, { "Power text, right", "powerRight" },
+    }) do
+        local key = t[2]
+        Cycle(c, t[1], 16, y, 220, TEXT_CHOICES, function() return db[key] end, function(v) db[key] = v end)
+        y = y - 28
+    end
     Cycle(c, "Health colour", 16, y, 220, HEALTH_COLORS,
         function() return db.healthColor end, function(v) db.healthColor = v end)
     y = y - 40

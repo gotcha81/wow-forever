@@ -167,8 +167,12 @@ end
 ns.defaults = {
     locked       = true,
     hideBlizzard = true,      -- hide the game's own frames (needs /reload)
-    healthText   = "both",    -- "none", "value", "percent" or "both"
-    powerText    = "both",
+    -- Text on each side of a bar: "none", "value", "percent" or "both".
+    healthLeft   = "percent",
+    healthRight  = "value",
+    powerLeft    = "percent",
+    powerRight   = "value",
+    minimap      = { shown = true, angle = 200 },
     healthColor  = "green",   -- "green" or "class" (class colour for players)
     width        = 200,
     nameHeight   = 12,
@@ -219,6 +223,7 @@ local function OnEvent(self, event, arg1)
         ClearTargetFrameDB = ClearTargetFrameDB or {}
         ApplyDefaults(ClearTargetFrameDB, ns.defaults)
         ns.db = ClearTargetFrameDB
+        ns.db.healthText, ns.db.powerText = nil, nil -- 0.1.0 settings, replaced by left/right
         for _, e in ipairs(pendingErrors) do table.insert(ns.db.errorLog, e) end
         wipe(pendingErrors)
         self:UnregisterEvent("ADDON_LOADED")
@@ -226,6 +231,7 @@ local function OnEvent(self, event, arg1)
         ns.db.locked = true -- always start locked
         ns.Frames:Create()
         ns.Options:Create()
+        ns.MinimapButton:Create()
     end
 end
 

@@ -6,6 +6,7 @@ local HELP = {
     "/ctf : open the settings",
     "/ctf unlock | lock : drag the frames / fix them in place",
     "/ctf reset : put the frames back in their default places",
+    "/ctf minimap on | off : show or hide the minimap button",
     "/ctf errors : caught errors (/ctf errors clear empties the list)",
 }
 
@@ -21,6 +22,9 @@ SlashCmdList.CLEARTARGETFRAME = ns.Safe("slash command", function(msg)
         if ns.Frames:SetLocked(true) then ns.Print("frames locked.") end
     elseif cmd == "reset" then
         ns.Frames:ResetPositions()
+    elseif cmd == "minimap" and (rest == "on" or rest == "off") then
+        ns.MinimapButton:SetShown(rest == "on")
+        ns.Print("minimap button " .. (rest == "on" and "shown." or "hidden."))
     elseif cmd == "errors" then
         if rest == "clear" then
             ns.ClearErrors()
