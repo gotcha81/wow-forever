@@ -6,6 +6,8 @@ in WoW Forever. Each frame shows only:
 - a small **name bar**: the name on the left, **Elite** or **Boss** on the right
 - the **health bar**
 - the **power bar** (mana, rage, energy, ... in its own colour)
+- on target and target of target: **debuffs** in rows outside the frame, under it
+  (16 by default; number, icon size and icons per row can be set). Hover one for its tooltip.
 
 The **border** shows the target's level colour, like the game does: grey, green,
 yellow, orange or red. Your own frame uses your class colour. Each frame can use a

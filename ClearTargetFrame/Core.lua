@@ -164,6 +164,8 @@ local function FrameDefaults(point, x, y, scale)
         powerHeight  = 10,
         borderSize   = 2,
         point = { point, "TOPLEFT", x, y },
+        -- Debuffs, in rows outside the frame, under it (used by target and target of target).
+        debuffs = { shown = true, max = 16, size = 20, perRow = 8 },
         border = "auto",                     -- "auto" (level colour; class colour on your own frame) or "custom"
         color = { r = 0.6, g = 0.6, b = 0.6 }, -- the custom border colour
     }

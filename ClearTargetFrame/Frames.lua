@@ -213,6 +213,146 @@ local function PowerColor(unit)
 end
 
 ---------------------------------------------------------------------------------------
+-- Debuffs: icons in rows outside the frame, right under it (target and target of
+-- target). Aura data may be secret too, so it is only handed to the game
+-- (textures, cooldown swipe, stack text) and never used in maths.
+---------------------------------------------------------------------------------------
+
+F.DEBUFF_UNITS = { target = true, targettarget = true }
+local SAMPLE_ICON = "Interface\\Icons\\Spell_Shadow_ShadowWordPain"
+
+local function GetDebuff(unit, i)
+    if C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
+        local ok, a = pcall(C_UnitAuras.GetAuraDataByIndex, unit, i, "HARMFUL")
+        if ok and type(a) == "table" then return a end
+        return nil
+    end
+    if UnitDebuff then
+        local name, icon, count, dtype, duration, expiration = UnitDebuff(unit, i)
+        if name then
+            return { icon = icon, applications = count, dispelName = dtype,
+                     duration = duration, expirationTime = expiration, index = i }
+        end
+    end
+end
+
+local function DebuffTooltip(icon)
+    local f = icon:GetParent():GetParent()
+    if not icon.aura or not UnitExists(f.unit) then return end
+    GameTooltip:SetOwner(icon, "ANCHOR_BOTTOMRIGHT")
+    local id = icon.aura.auraInstanceID
+    if id and GameTooltip.SetUnitDebuffByAuraInstanceID then
+        GameTooltip:SetUnitDebuffByAuraInstanceID(f.unit, id)
+    else
+        GameTooltip:SetUnitDebuff(f.unit, icon.index)
+    end
+    GameTooltip:Show()
+end
+
+local function DebuffIcon(f, i)
+    local icon = f.debuffs.icons[i]
+    if icon then return icon end
+    icon = CreateFrame("Frame", nil, f.debuffs)
+    icon:EnableMouse(true)
+    icon.border = icon:CreateTexture(nil, "BACKGROUND")
+    icon.border:SetAllPoints()
+    icon.border:SetColorTexture(0.8, 0, 0, 1)
+    icon.tex = icon:CreateTexture(nil, "ARTWORK")
+    icon.tex:SetPoint("TOPLEFT", 1, -1)
+    icon.tex:SetPoint("BOTTOMRIGHT", -1, 1)
+    icon.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    icon.cd = CreateFrame("Cooldown", nil, icon, "CooldownFrameTemplate")
+    icon.cd:SetAllPoints(icon.tex)
+    icon.cd:SetReverse(true)
+    if icon.cd.SetHideCountdownNumbers then icon.cd:SetHideCountdownNumbers(true) end
+    icon.count = icon:CreateFontString(nil, "OVERLAY")
+    icon.count:SetFont(STANDARD_TEXT_FONT, 10, "OUTLINE")
+    icon.count:SetPoint("BOTTOMRIGHT", 0, 1)
+    icon:SetScript("OnEnter", ns.Safe("debuff tooltip", DebuffTooltip))
+    icon:SetScript("OnLeave", GameTooltip_Hide)
+    f.debuffs.icons[i] = icon
+    return icon
+end
+
+-- Places icon i in its row and column under the frame.
+local function PlaceIcon(f, icon, i, d)
+    local col = (i - 1) % d.perRow
+    local row = math.floor((i - 1) / d.perRow)
+    icon:SetSize(d.size, d.size)
+    icon:ClearAllPoints()
+    icon:SetPoint("TOPLEFT", f.debuffs, "TOPLEFT", col * (d.size + 2), -row * (d.size + 2))
+end
+
+local function SetStacks(icon, unit, a)
+    local n = a.applications
+    if IsSecretValue(n) then
+        -- The game builds the text itself (empty for 0 or 1 stacks).
+        local ok = a.auraInstanceID and C_UnitAuras.GetAuraApplicationDisplayCount
+            and pcall(function()
+                icon.count:SetText(C_UnitAuras.GetAuraApplicationDisplayCount(unit, a.auraInstanceID, 2, 99))
+            end)
+        if not ok then icon.count:SetText("") end
+    else
+        icon.count:SetText((n and n > 1) and n or "")
+    end
+end
+
+local function SetSwipe(icon, unit, a)
+    local dur, exp = a.duration, a.expirationTime
+    if not IsSecretValue(dur) and not IsSecretValue(exp) then
+        if dur and dur > 0 and exp then icon.cd:SetCooldown(exp - dur, dur) else icon.cd:Clear() end
+        return
+    end
+    -- Secret: let the game draw the swipe from its own duration object, if it can.
+    local ok = a.auraInstanceID and C_UnitAuras.GetAuraDuration and icon.cd.SetCooldownFromDurationObject
+        and pcall(function()
+            icon.cd:SetCooldownFromDurationObject(C_UnitAuras.GetAuraDuration(unit, a.auraInstanceID))
+        end)
+    if not ok then icon.cd:Clear() end
+end
+
+local function SetDebuffColor(icon, a)
+    local c
+    local t = a.dispelName
+    if not IsSecretValue(t) and DebuffTypeColor then c = DebuffTypeColor[t or "none"] or DebuffTypeColor.none end
+    if c then icon.border:SetColorTexture(c.r, c.g, c.b, 1) else icon.border:SetColorTexture(0.8, 0, 0, 1) end
+end
+
+function F:UpdateDebuffs(f, sample)
+    if not f.debuffs then return end
+    local d = ns.db.frames[f.unit].debuffs
+    local shown = 0
+    if d.shown then
+        for i = 1, d.max do
+            local a
+            if sample then
+                a = { icon = SAMPLE_ICON }
+            else
+                a = GetDebuff(f.unit, i)
+            end
+            if not a then break end
+            local icon = DebuffIcon(f, i)
+            PlaceIcon(f, icon, i, d)
+            icon.aura, icon.index = a, i
+            icon.tex:SetTexture(a.icon)
+            if sample then
+                icon.count:SetText(""); icon.cd:Clear(); icon.border:SetColorTexture(0.8, 0, 0, 1)
+            else
+                pcall(SetStacks, icon, f.unit, a)
+                pcall(SetSwipe, icon, f.unit, a)
+                pcall(SetDebuffColor, icon, a)
+            end
+            icon:Show()
+            shown = i
+        end
+    end
+    for i = shown + 1, #f.debuffs.icons do
+        f.debuffs.icons[i]:Hide()
+        f.debuffs.icons[i].aura = nil
+    end
+end
+
+---------------------------------------------------------------------------------------
 -- Drawing one frame
 ---------------------------------------------------------------------------------------
 
@@ -233,6 +373,7 @@ local function ShowPlaceholder(f)
     if s.border == "custom" then r, g, b = s.color.r, s.color.g, s.color.b
     elseif f.unit == "player" then r, g, b = ClassColor("player") end
     f.border:SetBackdropBorderColor(r, g, b, 1)
+    F:UpdateDebuffs(f, true) -- sample icons show where the debuffs will be
 end
 
 function F:Draw(f)
@@ -284,6 +425,7 @@ function F:Draw(f)
     SetBarText(f.powerRight, db.powerRight, pw, pwMax, pwUnit, "power")
 
     f.border:SetBackdropBorderColor(BorderColor(unit, db.frames[unit]))
+    self:UpdateDebuffs(f)
 end
 
 function F:DrawAll()
@@ -332,6 +474,15 @@ local function ApplyLayout(f)
     f.powerRight:SetFont(STANDARD_TEXT_FONT, pwFont, "OUTLINE")
     f.powerLeft:SetShown(db.powerHeight >= 8)  -- too thin for text below that
     f.powerRight:SetShown(db.powerHeight >= 8)
+
+    if f.debuffs then
+        -- outside the frame: right under its bottom edge
+        local d = db.debuffs
+        f.debuffs:ClearAllPoints()
+        f.debuffs:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 0, -3)
+        f.debuffs:SetSize(math.max(1, d.perRow * (d.size + 2)), d.size)
+        for i, icon in ipairs(f.debuffs.icons) do PlaceIcon(f, icon, i, d) end
+    end
 end
 
 -- Shown / hidden. Locked: the game shows the frame only while its unit exists.
@@ -475,6 +626,11 @@ local function CreateUnitFrame(unit)
     f.dragHint:SetText(F.LABELS[unit] .. " (drag)")
     f.dragHint:Hide()
 
+    if F.DEBUFF_UNITS[unit] then
+        f.debuffs = CreateFrame("Frame", nil, f) -- a plain frame; moves and hides with the unit frame
+        f.debuffs.icons = {}
+    end
+
     frames[unit] = f
     return f
 end
@@ -500,7 +656,7 @@ end
 
 local UNIT_EVENTS = { "UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_POWER_UPDATE", "UNIT_POWER_FREQUENT",
                       "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER", "UNIT_NAME_UPDATE", "UNIT_LEVEL",
-                      "UNIT_CLASSIFICATION_CHANGED", "UNIT_CONNECTION", "UNIT_FACTION", "UNIT_TARGET", "UNIT_PET" }
+                      "UNIT_CLASSIFICATION_CHANGED", "UNIT_CONNECTION", "UNIT_FACTION", "UNIT_TARGET", "UNIT_PET", "UNIT_AURA" }
 
 local function OnEvent(_, event, unit)
     if event == "PLAYER_REGEN_ENABLED" then

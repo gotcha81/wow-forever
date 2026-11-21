@@ -239,7 +239,23 @@ function O:Create()
         if unit == "player" then
             Label(c, "(level colour = your class colour)", 16 + 130 + 200, y - 4, "GameFontDisableSmall")
         end
-        y = y - 40
+        y = y - 28
+        if ns.Frames.DEBUFF_UNITS[unit] then
+            local d = fs.debuffs
+            Check(c, "Show debuffs (under the frame)", 16, y, function() return d.shown end,
+                function(v) d.shown = v; Changed() end)
+            y = y - 28
+            for _, s in ipairs({
+                { "Debuffs shown", "max", 1, 40, 1 },
+                { "Debuff size", "size", 12, 40, 1 },
+                { "Debuffs per row", "perRow", 2, 20, 1 },
+            }) do
+                local key = s[2]
+                Slider(c, s[1], 16, y, s[3], s[4], s[5], function() return d[key] end, function(v) d[key] = v end)
+                y = y - 28
+            end
+        end
+        y = y - 12
     end
     c:SetHeight(-y + 20)
 
