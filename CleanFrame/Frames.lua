@@ -528,6 +528,16 @@ end
 -- Sizes and positions (out of combat only)
 ---------------------------------------------------------------------------------------
 
+-- Offset of the frame's centre from the screen centre, in the frame's own units
+-- (what SetPoint("CENTER", UIParent, "CENTER", x, y) takes).
+local function CenterOffset(f)
+    local cx, cy = f:GetCenter()
+    local ux, uy = UIParent:GetCenter()
+    if not cx or not ux then return nil end
+    local fs, us = f:GetEffectiveScale(), UIParent:GetEffectiveScale()
+    return math.floor((cx * fs - ux * us) / fs + 0.5), math.floor((cy * fs - uy * us) / fs + 0.5)
+end
+
 local function ApplyLayout(f)
     local db = ns.db.frames[f.unit] -- every size is per frame
     local s = db
@@ -536,6 +546,16 @@ local function ApplyLayout(f)
     f:SetSize(db.width + 2 * b, db.nameHeight + db.healthHeight + db.powerHeight + 2 * b + 2)
     f:ClearAllPoints()
     f:SetPoint(s.point[1], UIParent, s.point[2], s.point[3], s.point[4])
+    -- Positions are kept as an offset from the screen centre (the X / Y offset in
+    -- the settings). Older or default positions are converted once, in place.
+    if s.point[1] ~= "CENTER" or s.point[2] ~= "CENTER" then
+        local x, y = CenterOffset(f)
+        if x then
+            s.point = { "CENTER", "CENTER", x, y }
+            f:ClearAllPoints()
+            f:SetPoint("CENTER", UIParent, "CENTER", x, y)
+        end
+    end
 
     f.border:SetBackdrop({ bgFile = WHITE, edgeFile = WHITE, edgeSize = b,
                            insets = { left = b, right = b, top = b, bottom = b } })
@@ -639,8 +659,13 @@ end
 
 local function OnDragStop(f)
     f:StopMovingOrSizing()
-    local point, _, relPoint, x, y = f:GetPoint()
-    ns.db.frames[f.unit].point = { point, relPoint, math.floor(x + 0.5), math.floor(y + 0.5) }
+    local x, y = CenterOffset(f)
+    if x then
+        ns.db.frames[f.unit].point = { "CENTER", "CENTER", x, y }
+        f:ClearAllPoints()
+        f:SetPoint("CENTER", UIParent, "CENTER", x, y)
+    end
+    ns.Options:Reload() -- the X / Y offset in the settings follow the drag
 end
 
 local function OnEnter(f)

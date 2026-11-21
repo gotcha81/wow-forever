@@ -80,6 +80,13 @@ function B:Create()
     b:SetShown(db.shown)
 end
 
+-- After an import: place and show/hide the button from the settings.
+function B:Apply()
+    if not self.button then return end
+    Place(self.button, ns.db.minimap.angle)
+    self.button:SetShown(ns.db.minimap.shown)
+end
+
 function B:SetShown(shown)
     ns.db.minimap.shown = shown and true or false
     if self.button then self.button:SetShown(shown) end

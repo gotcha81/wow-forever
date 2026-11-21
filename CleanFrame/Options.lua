@@ -68,7 +68,8 @@ local function Cycle(parent, text, x, y, width, choices, get, set)
     return b
 end
 
-local function Slider(parent, text, x, y, min, max, step, get, set)
+-- withBox: a box next to the slider where the exact number can be typed (Enter).
+local function Slider(parent, text, x, y, min, max, step, get, set, withBox)
     local label = Label(parent, text, x, y - 4)
     -- Drawn with plain colours, so it shows whatever artwork the client has.
     local s = CreateFrame("Slider", nil, parent)
@@ -92,8 +93,30 @@ local function Slider(parent, text, x, y, min, max, step, get, set)
     local value = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     value:SetPoint("LEFT", s, "RIGHT", 8, 0)
     local loading = true -- nothing is saved until the slider shows the real value
+    local box
+    if withBox then
+        value:Hide()
+        box = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
+        box:SetSize(60, 20)
+        box:SetPoint("LEFT", s, "RIGHT", 14, 0)
+        box:SetAutoFocus(false)
+        box:SetJustifyH("CENTER")
+        local function Commit(self)
+            local n = tonumber(self:GetText())
+            self:ClearFocus()
+            if not n then s:Load(); return end
+            n = math.max(min, math.min(max, math.floor(n / step + 0.5) * step))
+            s:SetValue(n) -- the slider saves it and redraws
+            self:SetText(tostring(n))
+        end
+        box:SetScript("OnEnterPressed", ns.Safe("option", Commit))
+        box:SetScript("OnEditFocusLost", function(self) s:Load() end)
+        box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    end
     local function Show(v)
-        value:SetText(step < 1 and ("%.2f"):format(v) or tostring(v))
+        local text = step < 1 and ("%.2f"):format(v) or tostring(v)
+        value:SetText(text)
+        if box and not box:HasFocus() then box:SetText(text) end
     end
     s:SetScript("OnValueChanged", ns.Safe("option", function(self, v)
         v = math.floor(v / step + 0.5) * step
@@ -245,6 +268,22 @@ function O:Create()
     reset:SetText("Reset positions")
     reset:SetScript("OnClick", ns.Safe("reset", function() ns.Frames:ResetPositions() end))
     y = y - 40
+
+    Label(c, "Import / export", 12, y, "GameFontNormal")
+    y = y - 22
+    Label(c, "All settings as one line of text, to keep or share.", 16, y, "GameFontDisableSmall")
+    y = y - 20
+    local export = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
+    export:SetSize(140, 22)
+    export:SetPoint("TOPLEFT", 16, y)
+    export:SetText("Export settings")
+    export:SetScript("OnClick", ns.Safe("export", function() ns.Profiles:ShowExport() end))
+    local import = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
+    import:SetSize(140, 22)
+    import:SetPoint("LEFT", export, "RIGHT", 8, 0)
+    import:SetText("Import settings")
+    import:SetScript("OnClick", ns.Safe("import", function() ns.Profiles:ShowImport() end))
+    y = y - 40
     c:SetHeight(-y + 20)
 
     -- One tab per frame, every frame with the same settings.
@@ -283,6 +322,22 @@ function O:Create()
         for _, s in ipairs(SIZES) do
             local key = s[2]
             Slider(c, s[1], 16, y, s[3], s[4], s[5], function() return fs[key] end, function(v) fs[key] = v end)
+            y = y - 28
+        end
+        y = y - 8
+
+        -- Position: offset of the frame's centre from the screen centre. Slider or
+        -- type the number (both work); dragging the frame updates them too.
+        Label(c, "Position (offset from the screen centre)", 12, y, "GameFontNormal")
+        y = y - 24
+        for i, axis in ipairs({ { "X offset", 3, 2000 }, { "Y offset", 4, 1500 } }) do
+            local index, range = axis[2], axis[3]
+            Slider(c, axis[1], 16, y, -range, range, 1,
+                function() return fs.point[index] end,
+                function(v)
+                    if fs.point[1] ~= "CENTER" then return end -- converted on the next layout
+                    fs.point[index] = v
+                end, true)
             y = y - 28
         end
         y = y - 8
@@ -326,6 +381,13 @@ function O:Create()
         self.category = category
     elseif InterfaceOptions_AddCategory then
         InterfaceOptions_AddCategory(panel)
+    end
+end
+
+-- Shows the current values again (after an import or a drag), if the panel is open.
+function O:Reload()
+    if self.panel and self.panel:IsVisible() then
+        for _, w in ipairs(widgets) do w:Load() end
     end
 end
 

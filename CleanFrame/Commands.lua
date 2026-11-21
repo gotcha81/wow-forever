@@ -7,6 +7,7 @@ local HELP = {
     "/cfr unlock | lock : drag the frames / fix them in place",
     "/cfr test : test mode on / off (every frame with sample data)",
     "/cfr reset : put the frames back in their default places",
+    "/cfr export | import : copy all settings as text / paste settings",
     "/cfr minimap on | off : show or hide the minimap button",
     "/cfr errors : caught errors (/cfr errors clear empties the list)",
 }
@@ -23,6 +24,10 @@ SlashCmdList.CLEANFRAME = ns.Safe("slash command", function(msg)
         if ns.Frames:SetLocked(true) then ns.Print("frames locked.") end
     elseif cmd == "test" then
         ns.Frames:SetTestMode(not ns.Frames.testMode)
+    elseif cmd == "export" then
+        ns.Profiles:ShowExport()
+    elseif cmd == "import" then
+        ns.Profiles:ShowImport()
     elseif cmd == "reset" then
         ns.Frames:ResetPositions()
     elseif cmd == "minimap" and (rest == "on" or rest == "off") then

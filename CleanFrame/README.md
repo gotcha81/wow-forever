@@ -29,6 +29,9 @@ frame with sample data: a different level colour, Elite/Boss/Mind controlled tag
 type on each, moving health and sample debuffs. Change settings while it runs to see them
 at once. It ends when combat starts.
 
+**Import / export** (General tab, `/cfr export`, `/cfr import`): all settings as one line
+of text, to keep or share. Importing only takes known settings; nothing in the text is run as code.
+
 (Up to 0.6.0 this addon was called ClearTargetFrame, with `/ctf`.)
 
 The settings have tabs: **General** (unlock, hide the game's frames, minimap button,
@@ -40,6 +43,8 @@ Every frame tab has the same settings, so each frame is set up on its own:
   none, remaining (`1234`), value (`1234 / 2000`), percent (`62%`) or both. Default: percent left, value right.
 - **Health colour**: green, or the class colour for players
 - **Size**: width, name bar, health bar and power bar heights, border size and scale
+- **Position**: X and Y offset from the screen centre, with a slider or by typing the
+  number (dragging the unlocked frame updates them too)
 - **Border**: level colour (your class colour on the Player frame) or a custom colour
 - **Debuffs** under the frame: on or off, how many (16 by default), icon size, icons per row.
   On by default for Target and Target of target.
@@ -54,6 +59,7 @@ Sizes and positions can't change in combat (a game rule); they apply when combat
 | `/cfr unlock` / `/cfr lock` | drag the frames / fix them in place |
 | `/cfr test` | test mode on / off |
 | `/cfr reset` | default positions |
+| `/cfr export` / `/cfr import` | copy all settings as text / paste settings |
 | `/cfr minimap on\|off` | show or hide the minimap button |
 | `/cfr errors` | caught errors (`/cfr errors clear` empties the list) |
 
