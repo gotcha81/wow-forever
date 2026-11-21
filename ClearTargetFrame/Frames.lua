@@ -115,6 +115,9 @@ local function Display(v)
     return v
 end
 
+-- Shown where a number can't be read (yet).
+local UNKNOWN = "-"
+
 local function SetBarText(fs, mode, cur, max, unit, kind)
     if not IsSecret(cur) and not IsSecret(max) then
         fs:SetText(BarText(mode, cur, max))
@@ -128,14 +131,53 @@ local function SetBarText(fs, mode, cur, max, unit, kind)
         elseif mode == "value" then
             fs:SetFormattedText("%s / %s", Display(cur), Display(max))
         elseif mode == "percent" then
-            if pct then fs:SetFormattedText("%.0f%%", pct) else fs:SetText("") end
+            if pct then fs:SetFormattedText("%.0f%%", pct) else fs:SetText(UNKNOWN) end
         elseif pct then
             fs:SetFormattedText("%s / %s  (%.0f%%)", Display(cur), Display(max), pct)
         else
             fs:SetFormattedText("%s / %s", Display(cur), Display(max))
         end
     end)
-    if not ok then fs:SetText("") end
+    if not ok then fs:SetText(UNKNOWN) end
+end
+
+-- The nameplate unit ("nameplate3", ...) showing the same unit, if one is near.
+local function NameplateUnit(unit)
+    if not (C_NamePlate and C_NamePlate.GetNamePlates) then return nil end
+    local ok, plates = pcall(C_NamePlate.GetNamePlates)
+    if not ok or type(plates) ~= "table" then return nil end
+    for _, plate in ipairs(plates) do
+        local token = plate.namePlateUnitToken or (plate.UnitFrame and plate.UnitFrame.unit)
+        if token then
+            local same, isIt = pcall(UnitIsUnit, token, unit)
+            if same and not IsSecret(isIt) and isIt then return token end
+        end
+    end
+end
+
+-- Current and maximum health or power. When the game hides them for the unit
+-- itself, they are read from its nameplate when one is near (as nameplate
+-- addons do). Returns cur, max and the unit token they came from.
+local function Values(unit, kind)
+    local cur, max
+    if kind == "health" then
+        cur, max = UnitHealth(unit), UnitHealthMax(unit)
+    else
+        cur, max = UnitPower(unit), UnitPowerMax(unit)
+    end
+    if (IsSecret(cur) or IsSecret(max)) and unit ~= "player" then
+        local plate = NameplateUnit(unit)
+        if plate then
+            local c, m
+            if kind == "health" then
+                c, m = UnitHealth(plate), UnitHealthMax(plate)
+            else
+                c, m = UnitPower(plate), UnitPowerMax(plate)
+            end
+            if not IsSecret(c) and not IsSecret(m) then return c, m, plate end
+        end
+    end
+    return cur, max, unit
 end
 
 -- A yes/no from the game, false when it is hidden from addons too.
@@ -202,7 +244,7 @@ function F:Draw(f)
     f.class:SetText(Classification(unit))
 
     -- health
-    local hp, hpMax = UnitHealth(unit), UnitHealthMax(unit)
+    local hp, hpMax, hpUnit = Values(unit, "health")
     f.health:SetMinMaxValues(0, SafeMax(hpMax))
     f.health:SetValue(hp)
     if db.healthColor == "class" and Flag(UnitIsPlayer, unit) then
@@ -222,17 +264,17 @@ function F:Draw(f)
         f.healthLeft:SetText(status)
         f.healthRight:SetText("")
     else
-        SetBarText(f.healthLeft, db.healthLeft, hp, hpMax, unit, "health")
-        SetBarText(f.healthRight, db.healthRight, hp, hpMax, unit, "health")
+        SetBarText(f.healthLeft, db.healthLeft, hp, hpMax, hpUnit, "health")
+        SetBarText(f.healthRight, db.healthRight, hp, hpMax, hpUnit, "health")
     end
 
     -- power (mana, rage, energy, ...)
-    local pw, pwMax = UnitPower(unit), UnitPowerMax(unit)
+    local pw, pwMax, pwUnit = Values(unit, "power")
     f.power:SetMinMaxValues(0, SafeMax(pwMax))
     f.power:SetValue(pw)
     f.power:SetStatusBarColor(PowerColor(unit))
-    SetBarText(f.powerLeft, db.powerLeft, pw, pwMax, unit, "power")
-    SetBarText(f.powerRight, db.powerRight, pw, pwMax, unit, "power")
+    SetBarText(f.powerLeft, db.powerLeft, pw, pwMax, pwUnit, "power")
+    SetBarText(f.powerRight, db.powerRight, pw, pwMax, pwUnit, "power")
 
     f.border:SetBackdropBorderColor(BorderColor(unit, db.frames[unit]))
 end
@@ -460,6 +502,8 @@ local function OnEvent(_, event, unit)
         F:Draw(frames.target); F:Draw(frames.targettarget)
     elseif event == "PLAYER_FOCUS_CHANGED" then
         F:Draw(frames.focus)
+    elseif event == "NAME_PLATE_UNIT_ADDED" or event == "NAME_PLATE_UNIT_REMOVED" then
+        F:Draw(frames.target); F:Draw(frames.focus) -- numbers may now be readable (or not)
     elseif event == "PLAYER_LEVEL_UP" or event == "PLAYER_ENTERING_WORLD" then
         F:DrawAll() -- the level colours depend on your level
     elseif event == "UNIT_TARGET" then
@@ -476,7 +520,8 @@ function F:Create()
     local ev = CreateFrame("Frame")
     for _, e in ipairs(UNIT_EVENTS) do pcall(ev.RegisterEvent, ev, e) end
     for _, e in ipairs({ "PLAYER_TARGET_CHANGED", "PLAYER_FOCUS_CHANGED", "PLAYER_LEVEL_UP",
-                         "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_ENABLED" }) do
+                         "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_ENABLED",
+                         "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED" }) do
         pcall(ev.RegisterEvent, ev, e)
     end
     ev:SetScript("OnEvent", ns.Safe("unit events", OnEvent))
