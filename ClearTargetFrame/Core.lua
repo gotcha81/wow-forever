@@ -154,18 +154,25 @@ end
 -- Settings (account wide)
 ---------------------------------------------------------------------------------------
 
-local function FrameDefaults(point, x, y, scale)
+local function FrameDefaults(point, x, y, scale, debuffs)
     return {
         shown = true,
         scale = scale,
+        -- Text on each side of a bar: "none", "current" (1234), "value" (1234 / 2000),
+        -- "percent" or "both".
+        healthLeft   = "percent",
+        healthRight  = "value",
+        powerLeft    = "percent",
+        powerRight   = "value",
+        healthColor  = "green",   -- "green" or "class" (class colour for players)
         width        = 200,
         nameHeight   = 12,
         healthHeight = 22,
         powerHeight  = 10,
         borderSize   = 2,
         point = { point, "TOPLEFT", x, y },
-        -- Debuffs, in rows outside the frame, under it (used by target and target of target).
-        debuffs = { shown = true, max = 16, size = 20, perRow = 8 },
+        -- Debuffs, in rows outside the frame, under it (on by default for target and target of target).
+        debuffs = { shown = debuffs, max = 16, size = 20, perRow = 8 },
         border = "auto",                     -- "auto" (level colour; class colour on your own frame) or "custom"
         color = { r = 0.6, g = 0.6, b = 0.6 }, -- the custom border colour
     }
@@ -174,20 +181,13 @@ end
 ns.defaults = {
     locked       = true,
     hideBlizzard = true,      -- hide the game's own frames (needs /reload)
-    -- Text on each side of a bar: "none", "current" (1234), "value" (1234 / 2000),
-    -- "percent" or "both".
-    healthLeft   = "percent",
-    healthRight  = "value",
-    powerLeft    = "percent",
-    powerRight   = "value",
     minimap      = { shown = true, angle = 200 },
-    healthColor  = "green",   -- "green" or "class" (class colour for players)
-    frames = {     -- each frame has its own size, scale, position and border
-        player       = FrameDefaults("TOPLEFT", 20, -20, 1),
-        target       = FrameDefaults("TOPLEFT", 260, -20, 1),
-        targettarget = FrameDefaults("TOPLEFT", 480, -40, 0.75),
-        focus        = FrameDefaults("TOPLEFT", 260, -110, 0.9),
-        pet          = FrameDefaults("TOPLEFT", 20, -90, 0.8), -- also a mind-controlled unit
+    frames = {     -- every frame has all its own settings (one settings tab each)
+        player       = FrameDefaults("TOPLEFT", 20, -20, 1, false),
+        target       = FrameDefaults("TOPLEFT", 260, -20, 1, true),
+        targettarget = FrameDefaults("TOPLEFT", 480, -40, 0.75, true),
+        focus        = FrameDefaults("TOPLEFT", 260, -110, 0.9, false),
+        pet          = FrameDefaults("TOPLEFT", 20, -90, 0.8, false), -- also a mind-controlled unit
     },
     errorLog = {},
 }
@@ -225,10 +225,23 @@ local function OnEvent(self, event, arg1)
     if event == "ADDON_LOADED" then
         if arg1 ~= ADDON_NAME then return end
         ClearTargetFrameDB = ClearTargetFrameDB or {}
-        -- Up to 0.2.4 the sizes were shared by all frames: give each frame those values.
+        -- Settings that used to be shared by all frames (sizes up to 0.2.4, texts and
+        -- health colour up to 0.5.0): give each frame those values once.
         local old = ClearTargetFrameDB
+        local SHARED = { "width", "nameHeight", "healthHeight", "powerHeight", "borderSize",
+                         "healthLeft", "healthRight", "powerLeft", "powerRight", "healthColor" }
         if type(old.frames) == "table" then
-            for _, key in ipairs({ "width", "nameHeight", "healthHeight", "powerHeight", "borderSize" }) do
+            if not old.perFrameDebuffs then
+                -- 0.5.0 saved debuffs as on for every frame, but showed them only on
+                -- target and target of target: keep it that way.
+                for unit, s in pairs(old.frames) do
+                    if type(s) == "table" and type(s.debuffs) == "table"
+                        and unit ~= "target" and unit ~= "targettarget" then
+                        s.debuffs.shown = false
+                    end
+                end
+            end
+            for _, key in ipairs(SHARED) do
                 if old[key] ~= nil then
                     for _, s in pairs(old.frames) do
                         if type(s) == "table" and s[key] == nil then s[key] = old[key] end
@@ -236,9 +249,8 @@ local function OnEvent(self, event, arg1)
                 end
             end
         end
-        for _, key in ipairs({ "width", "nameHeight", "healthHeight", "powerHeight", "borderSize" }) do
-            old[key] = nil
-        end
+        for _, key in ipairs(SHARED) do old[key] = nil end
+        old.perFrameDebuffs = true
         ApplyDefaults(ClearTargetFrameDB, ns.defaults)
         ns.db = ClearTargetFrameDB
         ns.db.healthText, ns.db.powerText = nil, nil -- 0.1.0 settings, replaced by left/right

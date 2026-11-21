@@ -218,7 +218,8 @@ end
 -- (textures, cooldown swipe, stack text) and never used in maths.
 ---------------------------------------------------------------------------------------
 
-F.DEBUFF_UNITS = { target = true, targettarget = true }
+-- Every frame can show debuffs (on by default only for target and target of target).
+F.DEBUFF_UNITS = { player = true, target = true, targettarget = true, focus = true, pet = true }
 local SAMPLE_ICON = "Interface\\Icons\\Spell_Shadow_ShadowWordPain"
 
 local function GetDebuff(unit, i)
@@ -363,12 +364,12 @@ local function ShowPlaceholder(f)
     f.class:SetText(f.unit == "player" and "" or "|cffffd100Elite|r")
     f.health:SetMinMaxValues(0, 100); f.health:SetValue(75)
     f.health:SetStatusBarColor(0, 0.8, 0)
-    f.healthLeft:SetText(BarText(ns.db.healthLeft, 7500, 10000))
-    f.healthRight:SetText(BarText(ns.db.healthRight, 7500, 10000))
+    f.healthLeft:SetText(BarText(s.healthLeft, 7500, 10000))
+    f.healthRight:SetText(BarText(s.healthRight, 7500, 10000))
     f.power:SetMinMaxValues(0, 100); f.power:SetValue(50)
     f.power:SetStatusBarColor(0, 0.44, 0.87)
-    f.powerLeft:SetText(BarText(ns.db.powerLeft, 500, 1000))
-    f.powerRight:SetText(BarText(ns.db.powerRight, 500, 1000))
+    f.powerLeft:SetText(BarText(s.powerLeft, 500, 1000))
+    f.powerRight:SetText(BarText(s.powerRight, 500, 1000))
     local r, g, b = 1, 0.82, 0
     if s.border == "custom" then r, g, b = s.color.r, s.color.g, s.color.b
     elseif f.unit == "player" then r, g, b = ClassColor("player") end
@@ -382,7 +383,7 @@ function F:Draw(f)
         if not ns.db.locked then ShowPlaceholder(f) end
         return
     end
-    local db = ns.db
+    local db = ns.db.frames[unit] -- this frame's own settings
 
     f.name:SetText(UnitName(unit) or "")
     local tag = Classification(unit)
@@ -424,7 +425,7 @@ function F:Draw(f)
     SetBarText(f.powerLeft, db.powerLeft, pw, pwMax, pwUnit, "power")
     SetBarText(f.powerRight, db.powerRight, pw, pwMax, pwUnit, "power")
 
-    f.border:SetBackdropBorderColor(BorderColor(unit, db.frames[unit]))
+    f.border:SetBackdropBorderColor(BorderColor(unit, db))
     self:UpdateDebuffs(f)
 end
 

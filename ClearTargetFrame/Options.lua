@@ -70,14 +70,21 @@ end
 
 local function Slider(parent, text, x, y, min, max, step, get, set)
     local label = Label(parent, text, x, y - 4)
-    local s = CreateFrame("Slider", nil, parent, "BackdropTemplate")
+    -- Drawn with plain colours, so it shows whatever artwork the client has.
+    local s = CreateFrame("Slider", nil, parent)
     s:SetOrientation("HORIZONTAL")
     s:SetSize(180, 16)
     s:SetPoint("TOPLEFT", x + 130, y - 2)
-    s:SetBackdrop({ bgFile = "Interface\\Buttons\\UI-SliderBar-Background",
-                    edgeFile = "Interface\\Buttons\\UI-SliderBar-Border", edgeSize = 8,
-                    insets = { left = 3, right = 3, top = 6, bottom = 6 } })
-    s:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
+    s:EnableMouse(true)
+    local track = s:CreateTexture(nil, "BACKGROUND")
+    track:SetPoint("LEFT", 0, 0)
+    track:SetPoint("RIGHT", 0, 0)
+    track:SetHeight(6)
+    track:SetColorTexture(0.25, 0.25, 0.25, 1)
+    local thumb = s:CreateTexture(nil, "OVERLAY")
+    thumb:SetSize(10, 16)
+    thumb:SetColorTexture(1, 0.82, 0, 1)
+    s:SetThumbTexture(thumb)
     s:SetMinMaxValues(min, max)
     s:SetValueStep(step)
     if s.SetObeyStepOnDrag then s:SetObeyStepOnDrag(true) end
@@ -166,24 +173,61 @@ function O:Create()
     panel.name = "ClearTargetFrame"
     self.panel = panel
 
-    local scroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", 4, -4)
-    scroll:SetPoint("BOTTOMRIGHT", -28, 4)
-    local c = CreateFrame("Frame", nil, scroll)
-    c:SetSize(600, 900)
-    scroll:SetScrollChild(c)
-
     local db = ns.db
-    local y = -12
-    Label(c, "ClearTargetFrame", 12, y, "GameFontNormalLarge")
-    Label(c, "v" .. ns.Version(), 170, y - 4, "GameFontDisableSmall")
-    y = y - 30
+    Label(panel, "ClearTargetFrame", 12, -12, "GameFontNormalLarge")
+    Label(panel, "v" .. ns.Version(), 170, -16, "GameFontDisableSmall")
 
+    -- Tabs: General, then one per frame. Each tab is a page in the scroll area.
+    local scroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 4, -70)
+    scroll:SetPoint("BOTTOMRIGHT", -28, 4)
+    local holder = CreateFrame("Frame", nil, scroll)
+    holder:SetSize(600, 600)
+    scroll:SetScrollChild(holder)
+
+    local pages, tabs = {}, {}
+    local function NewPage()
+        local p = CreateFrame("Frame", nil, holder)
+        p:SetPoint("TOPLEFT")
+        p:SetSize(600, 600)
+        p:Hide()
+        pages[#pages + 1] = p
+        return p
+    end
+    local function Select(n)
+        for i, p in ipairs(pages) do
+            p:SetShown(i == n)
+            if i == n then holder:SetHeight(p:GetHeight()) end
+        end
+        for i, t in ipairs(tabs) do
+            if i == n then t:LockHighlight(); t:Disable() else t:UnlockHighlight(); t:Enable() end
+        end
+        scroll:SetVerticalScroll(0)
+        O.selected = n
+    end
+    local TAB_NAMES = { "General" }
+    for _, unit in ipairs(ns.Frames.UNITS) do
+        TAB_NAMES[#TAB_NAMES + 1] = unit == "targettarget" and "Target of target" or ns.Frames.LABELS[unit]
+    end
+    local tx = 12
+    for i, name in ipairs(TAB_NAMES) do
+        local t = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+        t:SetText(name)
+        t:SetSize(math.max(70, t:GetFontString():GetStringWidth() + 24), 24)
+        t:SetPoint("TOPLEFT", tx, -40)
+        tx = tx + t:GetWidth() + 4
+        t:SetScript("OnClick", function() Select(i) end)
+        tabs[i] = t
+    end
+
+    -- General
+    local c = NewPage()
+    local y = -8
     Check(c, "Unlock the frames (drag them to move)", 12, y,
         function() return not db.locked end,
         function(v) return ns.Frames:SetLocked(not v) end)
     y = y - 28
-    Check(c, "Hide the game's own player, target and focus frames (needs /reload)", 12, y,
+    Check(c, "Hide the game's own player, target, focus and pet frames (needs /reload)", 12, y,
         function() return db.hideBlizzard end,
         function(v) db.hideBlizzard = v; ns.Print("type /reload to apply this.") end)
     y = y - 28
@@ -197,22 +241,9 @@ function O:Create()
     reset:SetText("Reset positions")
     reset:SetScript("OnClick", ns.Safe("reset", function() ns.Frames:ResetPositions() end))
     y = y - 40
+    c:SetHeight(-y + 20)
 
-    Label(c, "Bars", 12, y, "GameFontNormal")
-    y = y - 24
-    for _, t in ipairs({
-        { "Health text, left", "healthLeft" }, { "Health text, right", "healthRight" },
-        { "Power text, left", "powerLeft" }, { "Power text, right", "powerRight" },
-    }) do
-        local key = t[2]
-        Cycle(c, t[1], 16, y, 220, TEXT_CHOICES, function() return db[key] end, function(v) db[key] = v end)
-        y = y - 28
-    end
-    Cycle(c, "Health colour", 16, y, 220, HEALTH_COLORS,
-        function() return db.healthColor end, function(v) db.healthColor = v end)
-    y = y - 40
-
-    -- Each frame has its own size.
+    -- One tab per frame, every frame with the same settings.
     local SIZES = {
         { "Width", "width", 100, 400, 5 },
         { "Name bar height", "nameHeight", 8, 24, 1 },
@@ -223,44 +254,66 @@ function O:Create()
     }
     for _, unit in ipairs(ns.Frames.UNITS) do
         local fs = db.frames[unit]
-        Label(c, ns.Frames.LABELS[unit], 12, y, "GameFontNormal")
-        y = y - 24
-        Check(c, "Show", 16, y, function() return fs.shown end,
+        c = NewPage()
+        y = -8
+        Check(c, "Show this frame", 12, y, function() return fs.shown end,
             function(v) fs.shown = v; Changed() end)
-        y = y - 28
+        y = y - 36
+
+        Label(c, "Bars", 12, y, "GameFontNormal")
+        y = y - 24
+        for _, t in ipairs({
+            { "Health text, left", "healthLeft" }, { "Health text, right", "healthRight" },
+            { "Power text, left", "powerLeft" }, { "Power text, right", "powerRight" },
+        }) do
+            local key = t[2]
+            Cycle(c, t[1], 16, y, 220, TEXT_CHOICES, function() return fs[key] end, function(v) fs[key] = v end)
+            y = y - 28
+        end
+        Cycle(c, "Health colour", 16, y, 220, HEALTH_COLORS,
+            function() return fs.healthColor end, function(v) fs.healthColor = v end)
+        y = y - 36
+
+        Label(c, "Size", 12, y, "GameFontNormal")
+        y = y - 24
         for _, s in ipairs(SIZES) do
             local key = s[2]
             Slider(c, s[1], 16, y, s[3], s[4], s[5], function() return fs[key] end, function(v) fs[key] = v end)
             y = y - 28
         end
-        Cycle(c, "Border", 16, y, 160, BORDER_MODES,
+        y = y - 8
+
+        Label(c, "Border", 12, y, "GameFontNormal")
+        y = y - 24
+        Cycle(c, "Border colour", 16, y, 160, BORDER_MODES,
             function() return fs.border end, function(v) fs.border = v end)
         Swatch(c, 16 + 130 + 170, y, function() return fs.color end)
         if unit == "player" then
             Label(c, "(level colour = your class colour)", 16 + 130 + 200, y - 4, "GameFontDisableSmall")
         end
+        y = y - 36
+
+        Label(c, "Debuffs", 12, y, "GameFontNormal")
+        y = y - 24
+        local d = fs.debuffs
+        Check(c, "Show debuffs (under the frame)", 16, y, function() return d.shown end,
+            function(v) d.shown = v; Changed() end)
         y = y - 28
-        if ns.Frames.DEBUFF_UNITS[unit] then
-            local d = fs.debuffs
-            Check(c, "Show debuffs (under the frame)", 16, y, function() return d.shown end,
-                function(v) d.shown = v; Changed() end)
+        for _, s in ipairs({
+            { "Debuffs shown", "max", 1, 40, 1 },
+            { "Debuff size", "size", 12, 40, 1 },
+            { "Debuffs per row", "perRow", 2, 20, 1 },
+        }) do
+            local key = s[2]
+            Slider(c, s[1], 16, y, s[3], s[4], s[5], function() return d[key] end, function(v) d[key] = v end)
             y = y - 28
-            for _, s in ipairs({
-                { "Debuffs shown", "max", 1, 40, 1 },
-                { "Debuff size", "size", 12, 40, 1 },
-                { "Debuffs per row", "perRow", 2, 20, 1 },
-            }) do
-                local key = s[2]
-                Slider(c, s[1], 16, y, s[3], s[4], s[5], function() return d[key] end, function(v) d[key] = v end)
-                y = y - 28
-            end
         end
-        y = y - 12
+        c:SetHeight(-y + 20)
     end
-    c:SetHeight(-y + 20)
 
     panel:SetScript("OnShow", ns.Safe("options", function()
         for _, w in ipairs(widgets) do w:Load() end
+        Select(O.selected or 1)
     end))
 
     if Settings and Settings.RegisterCanvasLayoutCategory then
