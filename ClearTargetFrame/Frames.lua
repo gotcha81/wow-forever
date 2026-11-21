@@ -23,6 +23,8 @@ local WHITE = "Interface\\Buttons\\WHITE8X8"
 local frames = {}
 F.frames = frames
 local layoutPending = false
+-- See "Secret values" below; needed this early by the colour helpers.
+local IsSecretValue = issecretvalue or function() return false end
 
 ---------------------------------------------------------------------------------------
 -- Colours and text
@@ -39,6 +41,7 @@ end
 -- The game's own "con" colour for a level: grey, green, yellow, orange or red.
 local function LevelColor(unit)
     local level = UnitLevel(unit)
+    if IsSecretValue(level) then return 1, 0.82, 0 end
     if not level or level <= 0 then return 1, 0.1, 0.1 end -- "??" level: much higher than you
     local c
     if GetCreatureDifficultyColor then
@@ -78,10 +81,78 @@ local function BarText(mode, cur, max)
 end
 F.BarText = BarText
 
+---------------------------------------------------------------------------------------
+-- Secret values. The Forever client hides health and power from addon code as
+-- "secret" numbers: an addon may not do maths or comparisons with them, only hand
+-- them to the game (status bars, SetFormattedText), which shows the real number.
+-- So for a secret number the text is built by the game, and the percent comes
+-- from the game's own UnitHealthPercent / UnitPowerPercent.
+---------------------------------------------------------------------------------------
+
+local IsSecret = issecretvalue or function() return false end
+F.IsSecret = IsSecret
+
+local function SafeMax(max)
+    if IsSecret(max) then return max end
+    return (max and max > 0) and max or 1
+end
+
+-- The game's own percent (0-100), or nil when the client can't give one.
+local function GamePercent(unit, kind)
+    local fn = kind == "health" and UnitHealthPercent or UnitPowerPercent
+    local curve = CurveConstants and CurveConstants.ScaleTo100
+    if not fn or not curve then return nil end
+    local ok, pct = pcall(fn, unit, false, curve)
+    if ok then return pct end
+end
+
+-- A number for display: shortened (12.3K) when the game allows it for this value.
+local function Display(v)
+    if AbbreviateLargeNumbers then
+        local ok, s = pcall(AbbreviateLargeNumbers, v)
+        if ok then return s end
+    end
+    return v
+end
+
+local function SetBarText(fs, mode, cur, max, unit, kind)
+    if not IsSecret(cur) and not IsSecret(max) then
+        fs:SetText(BarText(mode, cur, max))
+        return
+    end
+    if mode == "none" then fs:SetText(""); return end
+    local ok = pcall(function()
+        local pct = (mode == "percent" or mode == "both") and GamePercent(unit, kind)
+        if mode == "current" then
+            fs:SetFormattedText("%s", Display(cur))
+        elseif mode == "value" then
+            fs:SetFormattedText("%s / %s", Display(cur), Display(max))
+        elseif mode == "percent" then
+            if pct then fs:SetFormattedText("%.0f%%", pct) else fs:SetText("") end
+        elseif pct then
+            fs:SetFormattedText("%s / %s  (%.0f%%)", Display(cur), Display(max), pct)
+        else
+            fs:SetFormattedText("%s / %s", Display(cur), Display(max))
+        end
+    end)
+    if not ok then fs:SetText("") end
+end
+
+-- A yes/no from the game, false when it is hidden from addons too.
+local function Flag(fn, unit)
+    if not fn then return false end
+    local ok, v = pcall(fn, unit)
+    if not ok or IsSecret(v) then return false end
+    return v and true or false
+end
+
 -- "Elite" or "Boss" (or nothing).
 local function Classification(unit)
     local c = UnitClassification and UnitClassification(unit)
-    if c == "worldboss" or (UnitLevel(unit) == -1 and (c == "elite" or c == "rareelite")) then
+    local level = UnitLevel(unit)
+    if IsSecretValue(c) then return "" end
+    if IsSecretValue(level) then level = 0 end
+    if c == "worldboss" or (level == -1 and (c == "elite" or c == "rareelite")) then
         return "|cffff3030Boss|r"
     elseif c == "elite" or c == "rareelite" then
         return "|cffffd100Elite|r"
@@ -132,36 +203,36 @@ function F:Draw(f)
 
     -- health
     local hp, hpMax = UnitHealth(unit), UnitHealthMax(unit)
-    f.health:SetMinMaxValues(0, hpMax > 0 and hpMax or 1)
+    f.health:SetMinMaxValues(0, SafeMax(hpMax))
     f.health:SetValue(hp)
-    if db.healthColor == "class" and UnitIsPlayer(unit) then
+    if db.healthColor == "class" and Flag(UnitIsPlayer, unit) then
         f.health:SetStatusBarColor(ClassColor(unit))
     else
         f.health:SetStatusBarColor(0, 0.8, 0)
     end
     local status
-    if UnitIsConnected and not UnitIsConnected(unit) then
+    if UnitIsConnected and not Flag(UnitIsConnected, unit) and Flag(UnitIsPlayer, unit) then
         status = "Offline"
-    elseif UnitIsGhost(unit) then
+    elseif Flag(UnitIsGhost, unit) then
         status = "Ghost"
-    elseif UnitIsDead(unit) then
+    elseif Flag(UnitIsDead, unit) then
         status = "Dead"
     end
     if status then
         f.healthLeft:SetText(status)
         f.healthRight:SetText("")
     else
-        f.healthLeft:SetText(BarText(db.healthLeft, hp, hpMax))
-        f.healthRight:SetText(BarText(db.healthRight, hp, hpMax))
+        SetBarText(f.healthLeft, db.healthLeft, hp, hpMax, unit, "health")
+        SetBarText(f.healthRight, db.healthRight, hp, hpMax, unit, "health")
     end
 
     -- power (mana, rage, energy, ...)
     local pw, pwMax = UnitPower(unit), UnitPowerMax(unit)
-    f.power:SetMinMaxValues(0, pwMax > 0 and pwMax or 1)
-    f.power:SetValue(pwMax > 0 and pw or 0)
+    f.power:SetMinMaxValues(0, SafeMax(pwMax))
+    f.power:SetValue(pw)
     f.power:SetStatusBarColor(PowerColor(unit))
-    f.powerLeft:SetText(BarText(db.powerLeft, pw, pwMax))
-    f.powerRight:SetText(BarText(db.powerRight, pw, pwMax))
+    SetBarText(f.powerLeft, db.powerLeft, pw, pwMax, unit, "power")
+    SetBarText(f.powerRight, db.powerRight, pw, pwMax, unit, "power")
 
     f.border:SetBackdropBorderColor(BorderColor(unit, db.frames[unit]))
 end

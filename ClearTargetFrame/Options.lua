@@ -264,7 +264,9 @@ function O:Open()
         ns.Print("the settings can't be opened in combat.")
         return
     end
-    if self.category and Settings and Settings.OpenToCategory then
+    if not self.panel then
+        ns.Print("the settings panel could not be created. Type /ctf errors to see why.")
+    elseif self.category and Settings and Settings.OpenToCategory then
         local id = self.category.GetID and self.category:GetID() or self.category.ID
         Settings.OpenToCategory(id)
     elseif InterfaceOptionsFrame_OpenToCategory then

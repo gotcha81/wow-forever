@@ -230,9 +230,10 @@ local function OnEvent(self, event, arg1)
         self:UnregisterEvent("ADDON_LOADED")
     elseif event == "PLAYER_LOGIN" then
         ns.db.locked = true -- always start locked
-        ns.Frames:Create()
-        ns.Options:Create()
-        ns.MinimapButton:Create()
+        -- Separate steps: if one fails (logged), the others still run.
+        ns.Safe("create settings", function() ns.Options:Create() end)()
+        ns.Safe("create minimap button", function() ns.MinimapButton:Create() end)()
+        ns.Safe("create frames", function() ns.Frames:Create() end)()
     end
 end
 
