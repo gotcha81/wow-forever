@@ -375,6 +375,23 @@ function O:Create()
         end
         y = y - 36
 
+        if unit == "player" then
+            local st = db.status
+            Label(c, "In combat and resting", 12, y, "GameFontNormal")
+            y = y - 24
+            Check(c, "Icon on the name bar (swords in combat, Zzz while resting)", 16, y,
+                function() return st.icons end, function(v) st.icons = v; Changed() end)
+            y = y - 28
+            Check(c, "Border colour while in combat / resting", 16, y,
+                function() return st.border end, function(v) st.border = v; Changed() end)
+            y = y - 28
+            Label(c, "In combat", 40, y - 4)
+            Swatch(c, 120, y, function() return st.combatColor end)
+            Label(c, "Resting", 170, y - 4)
+            Swatch(c, 230, y, function() return st.restColor end)
+            y = y - 36
+        end
+
         Label(c, "Debuffs", 12, y, "GameFontNormal")
         y = y - 24
         local d = fs.debuffs

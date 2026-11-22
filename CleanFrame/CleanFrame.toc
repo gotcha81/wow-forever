@@ -2,7 +2,7 @@
 ## Title: CleanFrame
 ## Notes: Clean player, target, target-of-target, focus and pet frames: name, elite/boss, health and power, with a level-coloured border. /cfr
 ## Author: gotcha81
-## Version: 0.10.0
+## Version: 0.11.0
 ## IconTexture: Interface\Icons\Ability_Hunter_MarkedForDeath
 ## SavedVariables: CleanFrameDB
 ## AddonCompartmentFunc: CleanFrame_OnAddonCompartmentClick

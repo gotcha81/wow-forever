@@ -446,6 +446,56 @@ local function IncomingHeals(unit)
     return nil
 end
 
+---------------------------------------------------------------------------------------
+-- In combat / resting (your own frame): an icon on the name bar and the border colour.
+---------------------------------------------------------------------------------------
+
+F.inCombat = false -- kept from PLAYER_REGEN_DISABLED / _ENABLED
+
+local COMBAT_ATLAS = "UI-HUD-UnitFrame-Player-CombatIcon"
+local STATE_FILE = "Interface\\CharacterFrame\\UI-StateIcon" -- resting left half, combat right half
+
+local function PlayerState()
+    if F.inCombat or Flag(UnitAffectingCombat, "player") then return "combat" end
+    if IsResting then
+        local ok, rest = pcall(IsResting)
+        if ok and not IsSecret(rest) and rest then return "resting" end
+    end
+    return nil
+end
+
+local function SetStateIcon(tex, state)
+    if state == "combat" then
+        if tex.SetAtlas and C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(COMBAT_ATLAS)
+            and pcall(tex.SetAtlas, tex, COMBAT_ATLAS) then
+            return
+        end
+        tex:SetTexture(STATE_FILE)
+        tex:SetTexCoord(0.5, 1, 0, 0.484375)
+    else
+        tex:SetTexture(STATE_FILE)
+        tex:SetTexCoord(0, 0.5, 0, 0.421875)
+    end
+end
+
+-- state: "combat", "resting" or nil. Call after the normal border colour is set.
+local function ShowPlayerState(f, state)
+    local st = ns.db.status
+    local icon = f.stateIcon
+    if state and st.icons then
+        if icon.state ~= state then SetStateIcon(icon, state); icon.state = state end
+        icon:Show()
+        f.class:SetPoint("RIGHT", icon, "LEFT", -2, 0)
+    else
+        icon:Hide()
+        f.class:SetPoint("RIGHT", f.nameBar, "RIGHT", -3, 0)
+    end
+    if state and st.border then
+        local c = state == "combat" and st.combatColor or st.restColor
+        f.border:SetBackdropBorderColor(c.r, c.g, c.b, 1)
+    end
+end
+
 local function ShowPlaceholder(f)
     -- Unlocked and nothing to show: a sample so the frame can be placed.
     local s = ns.db.frames[f.unit]
@@ -530,6 +580,7 @@ local function ShowTest(f)
         r, g, b = t.color[1], t.color[2], t.color[3]
     end
     f.border:SetBackdropBorderColor(r, g, b, 1)
+    if f.unit == "player" then ShowPlayerState(f, "resting") end -- sample: resting
     F:UpdateDebuffs(f, true)
 end
 
@@ -601,6 +652,7 @@ function F:Draw(f)
     SetBarText(f.powerRight, db.powerRight, pw, pwMax, pwUnit, "power")
 
     f.border:SetBackdropBorderColor(BorderColor(unit, db))
+    if unit == "player" then ShowPlayerState(f, PlayerState()) end
     self:UpdateDebuffs(f)
 end
 
@@ -667,6 +719,7 @@ local function ApplyLayout(f)
     local fontSize = math.max(7, db.nameHeight - 2)
     f.name:SetFont(STANDARD_TEXT_FONT, fontSize, "OUTLINE")
     f.class:SetFont(STANDARD_TEXT_FONT, fontSize, "OUTLINE")
+    if f.stateIcon then f.stateIcon:SetSize(db.nameHeight + 2, db.nameHeight + 2) end
 
     f.health:ClearAllPoints()
     f.health:SetPoint("TOPLEFT", f.nameBar, "BOTTOMLEFT", 0, -1)
@@ -846,6 +899,12 @@ local function CreateUnitFrame(unit)
     f.class:SetPoint("RIGHT", -3, 0)
     f.class:SetJustifyH("RIGHT")
     f.name:SetPoint("RIGHT", f.class, "LEFT", -4, 0)
+    if unit == "player" then
+        f.stateIcon = f.nameBar:CreateTexture(nil, "OVERLAY")
+        f.stateIcon:SetPoint("RIGHT", f.nameBar, "RIGHT", -2, 0)
+        f.stateIcon:SetSize(14, 14)
+        f.stateIcon:Hide()
+    end
 
     f.health = NewBar(f)
     f.heal = NewOverlay(f.health, false)
@@ -914,8 +973,14 @@ local function OnEvent(_, event, unit, castGUID, spellID)
             F:Draw(frames.player)
         end
     elseif event == "PLAYER_REGEN_ENABLED" then
+        F.inCombat = false
         if layoutPending then F:Refresh() end
+        F:Draw(frames.player)
+    elseif event == "PLAYER_UPDATE_RESTING" then
+        F:Draw(frames.player)
     elseif event == "PLAYER_REGEN_DISABLED" then
+        F.inCombat = true
+        F:Draw(frames.player)
         -- Combat starts: end test mode now, while the frames can still be changed.
         if F.testMode then
             F.testMode = false
@@ -940,6 +1005,7 @@ local function OnEvent(_, event, unit, castGUID, spellID)
 end
 
 function F:Create()
+    F.inCombat = InCombatLockdown() and true or false
     for _, unit in ipairs(F.UNITS) do CreateUnitFrame(unit) end
     if ns.db.hideBlizzard then HideBlizzard() end
 
@@ -950,7 +1016,7 @@ function F:Create()
     cast:SetScript("OnEvent", ns.Safe("cast events", OnEvent))
     for _, e in ipairs({ "PLAYER_TARGET_CHANGED", "PLAYER_FOCUS_CHANGED", "PLAYER_LEVEL_UP",
                          "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED",
-                         "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED" }) do
+                         "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED", "PLAYER_UPDATE_RESTING" }) do
         pcall(ev.RegisterEvent, ev, e)
     end
     ev:SetScript("OnEvent", ns.Safe("unit events", OnEvent))

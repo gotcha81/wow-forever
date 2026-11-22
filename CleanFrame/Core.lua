@@ -189,6 +189,13 @@ ns.defaults = {
     locked       = true,
     hideBlizzard = true,      -- hide the game's own frames (needs /reload)
     minimap      = { shown = true, angle = 200 },
+    -- In combat / resting on your own frame: an icon on the name bar and the border colour.
+    status = {
+        icons       = true,
+        border      = true,
+        combatColor = { r = 1, g = 0.1, b = 0.1 },
+        restColor   = { r = 1, g = 0.82, b = 0 },
+    },
     frames = {     -- every frame has all its own settings (one settings tab each)
         player       = FrameDefaults("TOPLEFT", 20, -20, 1, false),
         target       = FrameDefaults("TOPLEFT", 260, -20, 1, true),
