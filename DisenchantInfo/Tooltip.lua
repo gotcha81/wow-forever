@@ -4,7 +4,7 @@
 --     [icon] Strange Dust - 80% - 3c - 1s 20c
 --     [icon] Lesser Magic Essence - 20% - 16c - 4s
 --     Average worth - 7c - 1s 76c
---   Arcane Salvager
+--   Disenchant (Arcane Salvager)
 --     [icon] Strange Dust - 85% - 3c - 1s 20c
 --     ...the same lines, from your own disenchants with the Salvager
 --   table (unverified) - logged 4 / 0 with Salvager (20 needed)
@@ -125,7 +125,7 @@ function T:Add(tooltip, link)
         AddRows(tooltip, base, tsm)
     end
 
-    tooltip:AddLine("Arcane Salvager", 1, 0.82, 0)
+    tooltip:AddLine("Disenchant (Arcane Salvager)", 1, 0.82, 0)
     if salv then
         AddRows(tooltip, salv, tsm)
     else

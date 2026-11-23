@@ -8,7 +8,7 @@ Disenchant
   [icon] Strange Dust - 80% - 3c - 1s 20c
   [icon] Lesser Magic Essence - 20% - 16c - 4s
   Average worth - 7c - 1s 76c
-Arcane Salvager
+Disenchant (Arcane Salvager)
   [icon] Strange Dust - 70% - 3c - 1s 20c
   [icon] Lesser Magic Essence - 30% - 16c - 4s
   Average worth - 7c - 2s 20c
