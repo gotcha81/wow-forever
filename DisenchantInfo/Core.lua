@@ -158,7 +158,7 @@ end
 ns.defaults = {
     showFor     = "enchanters", -- "enchanters" (characters that know Disenchant) or "all"
     showTotal   = true,         -- the "Average worth" line
-    showQty     = true,         -- "x1-2" after the material name
+    showQty     = false,        -- "x1-2" after the material name (off: the user wants "icon name %")
     chatLog     = true,         -- a chat line after each logged disenchant
     minSamples  = 20,           -- logged disenchants needed before your own % replace the table %
     salvager    = "auto",       -- "auto" (detect), "on" (always count as with Salvager), "off"

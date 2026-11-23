@@ -116,7 +116,7 @@ function O:Create()
     Number(panel, "Logged disenchants needed (per kind)", 20, y, 1, 1000,
         function() return db.minSamples end, function(v) db.minSamples = v end)
     y = y - 22
-    Label(panel, "Until then the tooltip uses the standard table, and \"(?)\" for the Salvager.",
+    Label(panel, "Until then the tooltip uses the standard table (the Salvager part: \"Not known yet\").",
         24, y - 4, "GameFontHighlightSmall")
 
     y = y - 32

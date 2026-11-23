@@ -4,19 +4,25 @@ For enchanters in WoW Forever: hover over an item and its tooltip shows what it
 disenchants into.
 
 ```
-Disenchant: chance (with Salvager) - vendor - AH
-Strange Dust x1-2 - 80% (85%) - 3c - 1s 20c
-Lesser Magic Essence x1-2 - 20% (15%) - 16c - 4s
-Average worth - 7c (8c) - 1s 76c
+Disenchant
+  [icon] Strange Dust - 80% - 3c - 1s 20c
+  [icon] Lesser Magic Essence - 20% - 16c - 4s
+  Average worth - 7c - 1s 76c
+Arcane Salvager
+  [icon] Strange Dust - 70% - 3c - 1s 20c
+  [icon] Lesser Magic Essence - 30% - 16c - 4s
+  Average worth - 7c - 2s 20c
 your log - logged 34 / 21 with Salvager (20 needed)
 ```
 
-Each line is: **material - chance (chance with the Arcane Salvager) - vendor price - AH price**.
+Each line is: **icon, material, chance, vendor price, AH price**. The **Arcane Salvager**
+part shows the same lines with the Salvager.
 
 - The **AH price** comes from TradeSkillMaster (DBMarket). Without TSM there is no
   AH column: the lines end after the vendor price.
 - **Average worth** is what one disenchant of this item gives on average
-  (chance x amount x price), at vendor and on the AH. The value with the Salvager is in brackets.
+  (chance x amount x price), at vendor and on the AH.
+- The amount per material (x1-2) can be switched on in the settings.
 - Prices are for one of the material.
 
 ## Learning from your disenchants
@@ -28,8 +34,8 @@ the tooltip shows **your own numbers** instead of the standard table.
 
 - Until then the chance comes from the standard Classic disenchant table. Those
   chances are not confirmed for WoW Forever, since the game client doesn't contain them.
-- **Arcane Salvager**: nobody has published how much it helps. The chance with it
-  shows `(?)` until enough disenchants with the Salvager are logged for that group.
+- **Arcane Salvager**: nobody has published how much it helps. Its part says "Not known
+  yet" until enough disenchants with the Salvager are logged for that group.
 - `/dei stats` compares everything logged without and with the Salvager (dust,
   essence, shard and crystal: how often and how many). This is where its effect shows first.
 

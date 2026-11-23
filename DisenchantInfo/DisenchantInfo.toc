@@ -2,7 +2,7 @@
 ## Title: DisenchantInfo
 ## Notes: Item tooltips show what an item disenchants into: chance, chance with the Arcane Salvager (learned from your own disenchants), vendor and TSM auction price. /dei
 ## Author: gotcha81
-## Version: 0.1.0
+## Version: 0.2.0
 ## IconTexture: Interface\Icons\INV_Enchant_Disenchant
 ## OptionalDeps: TradeSkillMaster
 ## SavedVariables: DisenchantInfoDB

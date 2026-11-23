@@ -1,13 +1,17 @@
 -- DisenchantInfo: the lines added to an item's tooltip.
 --
---   Disenchant: chance (with Salvager) - vendor - AH
---   Strange Dust x1-2 - 80% (85%) - 3c - 1s 20c
---   Lesser Magic Essence x1-2 - 20% (?) - 16c - 4s
---   Average worth - 7c (8c) - 1s 76c
+--   Disenchant
+--     [icon] Strange Dust - 80% - 3c - 1s 20c
+--     [icon] Lesser Magic Essence - 20% - 16c - 4s
+--     Average worth - 7c - 1s 76c
+--   Arcane Salvager
+--     [icon] Strange Dust - 85% - 3c - 1s 20c
+--     ...the same lines, from your own disenchants with the Salvager
 --   table (unverified) - logged 4 / 0 with Salvager (20 needed)
 --
--- "(?)": not enough disenchants with the Salvager logged yet for this kind of item.
--- The AH price comes from TSM (DBMarket). Without TSM a line ends after the vendor price.
+-- Line: icon, material, chance, vendor price, AH price (TSM DBMarket). Without TSM a
+-- line ends after the vendor price. The Arcane Salvager part shows what you got with
+-- it, once enough disenchants with it are logged for this kind of item.
 
 local _, ns = ...
 local T = {}
@@ -56,101 +60,80 @@ local function KnowsDisenchant()
     return false
 end
 
--- The rows to show: { id, chance, min, max, avg, salv (chance with Salvager or nil) }.
-local function Rows(info)
-    local learned = ns.Logger:Learned(info.key, "base")
-    local base = learned
-    if not base then
-        base = {}
-        if info.band then
-            for i = 3, #info.band do
-                local id, chance, min, max = unpack(info.band[i])
-                base[#base + 1] = { id = id, chance = chance, min = min, max = max, avg = (min + max) / 2 }
-            end
+-- The table's results for an item: a list of { id, chance, min, max, avg }.
+local function TableRows(info)
+    local rows = {}
+    if info.band then
+        for i = 3, #info.band do
+            local id, chance, min, max = unpack(info.band[i])
+            rows[#rows + 1] = { id = id, chance = chance, min = min, max = max, avg = (min + max) / 2 }
         end
     end
-    local salv = ns.Logger:Learned(info.key, "salv")
-    local rows, byID = {}, {}
-    for _, r in ipairs(base) do
-        local row = { id = r.id, chance = r.chance, min = r.min, max = r.max, avg = r.avg }
-        rows[#rows + 1] = row
-        byID[r.id] = row
-    end
-    if salv then
-        for _, row in ipairs(rows) do row.salv = 0 end
-        for _, r in ipairs(salv) do
-            local row = byID[r.id]
-            if not row then -- something only seen with the Salvager
-                row = { id = r.id, chance = 0, min = r.min, max = r.max, avg = r.avg }
-                rows[#rows + 1] = row
-            end
-            row.salv, row.salvAvg = r.chance, r.avg
-            row.min, row.max = math.min(row.min, r.min), math.max(row.max, r.max)
-        end
-    end
-    return rows, learned ~= nil, salv ~= nil
+    return rows
 end
 
 local function Percent(p)
-    if p == nil then return "?" end
     if p > 0 and p < 1 then return ("%.1f%%"):format(p) end
     return ("%d%%"):format(math.floor(p + 0.5))
 end
 
-function T:Add(tooltip, link)
-    if ns.db.showFor ~= "all" and not KnowsDisenchant() then return end
-    local info = ns.Data.Describe(link)
-    if not info then return end
-    local rows, fromLog, salvKnown = Rows(info)
-    local tsm = HasTSM()
+local function Icon(itemID)
+    local icon = select(5, C_Item.GetItemInfoInstant(itemID))
+    return icon and ("|T" .. icon .. ":0|t ") or ""
+end
 
-    tooltip:AddLine(" ")
-    tooltip:AddLine(GOLD .. "Disenchant:|r chance (with Salvager) - vendor" .. (tsm and " - AH" or ""))
-    if #rows == 0 then
-        tooltip:AddLine(GREY .. "No disenchant data yet for this item level. Disenchant one to learn it.|r")
-    end
-
-    local worth = { vendor = 0, ah = 0, vendorS = 0, ahS = 0, vendorOk = true, ahOk = tsm }
+-- One section: a line per material, then the average worth.
+local function AddRows(tooltip, rows, tsm)
+    local worth = { vendor = 0, ah = 0, vendorOk = true, ahOk = tsm }
     for _, r in ipairs(rows) do
         local qty = ""
         if ns.db.showQty then
             qty = r.min == r.max and (" x" .. r.min) or (" x" .. r.min .. "-" .. r.max)
         end
         local vendor, ah = VendorPrice(r.id), tsm and AuctionPrice(r.id) or nil
-        local line = ("%s%s%s|r - %s%s|r (%s) - %s"):format(WHITE, ns.Data.Name(r.id), qty,
-            GOLD, Percent(r.chance), Percent(r.salv), Money(vendor))
+        local line = ("  %s%s%s%s|r - %s%s|r - %s"):format(Icon(r.id), WHITE, ns.Data.Name(r.id), qty,
+            GOLD, Percent(r.chance), Money(vendor))
         if tsm then line = line .. " - " .. (ah and Money(ah) or "no AH data") end
         tooltip:AddLine(line)
-
-        local avgS = r.salvAvg or r.avg
-        if vendor then
-            worth.vendor = worth.vendor + r.chance / 100 * r.avg * vendor
-            if r.salv then worth.vendorS = worth.vendorS + r.salv / 100 * avgS * vendor end
-        else
-            worth.vendorOk = false
-        end
-        if ah then
-            worth.ah = worth.ah + r.chance / 100 * r.avg * ah
-            if r.salv then worth.ahS = worth.ahS + r.salv / 100 * avgS * ah end
-        else
-            worth.ahOk = false
-        end
+        if vendor then worth.vendor = worth.vendor + r.chance / 100 * r.avg * vendor else worth.vendorOk = false end
+        if ah then worth.ah = worth.ah + r.chance / 100 * r.avg * ah else worth.ahOk = false end
     end
-
     if ns.db.showTotal and #rows > 0 then
-        local function Pair(value, valueS, ok)
-            if not ok then return "?" end
-            return Money(value) .. (salvKnown and (" (" .. Money(valueS) .. ")") or "")
-        end
-        local line = "Average worth - " .. Pair(worth.vendor, worth.vendorS, worth.vendorOk)
-        if tsm then line = line .. " - " .. Pair(worth.ah, worth.ahS, worth.ahOk) end
+        local line = "  Average worth - " .. (worth.vendorOk and Money(worth.vendor) or "?")
+        if tsm then line = line .. " - " .. (worth.ahOk and Money(worth.ah) or "?") end
         tooltip:AddLine(GOLD .. line .. "|r")
     end
+end
 
+function T:Add(tooltip, link)
+    if ns.db.showFor ~= "all" and not KnowsDisenchant() then return end
+    local info = ns.Data.Describe(link)
+    if not info then return end
+    local tsm = HasTSM()
     local needed = ns.db.minSamples
+    local base = ns.Logger:Learned(info.key, "base")
+    local fromLog = base ~= nil
+    base = base or TableRows(info)
+    local salv = ns.Logger:Learned(info.key, "salv")
+    local nBase, nSalv = ns.Logger:Count(info.key, "base"), ns.Logger:Count(info.key, "salv")
+
+    tooltip:AddLine(" ")
+    tooltip:AddLine("Disenchant", 1, 0.82, 0)
+    if #base == 0 then
+        tooltip:AddLine(GREY .. "  No data yet for this item level. Disenchant one to learn it.|r")
+    else
+        AddRows(tooltip, base, tsm)
+    end
+
+    tooltip:AddLine("Arcane Salvager", 1, 0.82, 0)
+    if salv then
+        AddRows(tooltip, salv, tsm)
+    else
+        tooltip:AddLine(("%s  Not known yet: %d of %d disenchants with the Salvager logged.|r"):format(GREY, nSalv, needed))
+    end
+
     tooltip:AddLine(("%s%s - logged %d / %d with Salvager (%d needed)|r"):format(GREY,
-        fromLog and "your log" or "table (unverified)",
-        ns.Logger:Count(info.key, "base"), ns.Logger:Count(info.key, "salv"), needed))
+        fromLog and "your log" or "table (unverified)", nBase, nSalv, needed))
     if ns.db.salvager == "on" then
         tooltip:AddLine("|cff40ff40Arcane Salvager is set ON by hand (/dei salvager)|r")
     end
