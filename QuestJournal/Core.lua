@@ -72,7 +72,13 @@ do
                 pcall(function()
                     local text = tostring(msg)
                     local stack = debugstack and debugstack(2, 20, 0) or ""
-                    if text:find(PATTERN) or stack:find(PATTERN) then
+                    -- This handler is always on the stack itself; leave its
+                    -- own lines out, or other addons' errors look like ours.
+                    local own = {}
+                    for line in stack:gmatch("[^\n]+") do
+                        if not line:find(PATTERN .. "Core%.lua") then own[#own + 1] = line end
+                    end
+                    if text:find(PATTERN) or table.concat(own, "\n"):find(PATTERN) then
                         Record("lua error", { message = text, stack = stack })
                     end
                 end)
