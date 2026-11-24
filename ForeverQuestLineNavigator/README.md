@@ -77,7 +77,7 @@ Copy the `ForeverQuestLineNavigator` folder into `World of Warcraft\_forever_\In
   bottom of the Route tab; right-click there to bring them back.
 - Optional (Settings, off by default): when you enter a dungeon, chat lists the quests for it you could have
   picked up but don't have.
-- `/fqln errors`: the addon's error log in a copy window (`/fqln errors clear` empties it).
+- `/fqln errors`: the addon's error log in a copy window (`/fqln errors clear` empties it). It catches every Lua error from this addon's files, not just the wrapped ones.
 - The quest window has a padlock, a cogwheel and a minimize button. Minimized, it shows only your next stop.
 - Settings (cogwheel) has the text sizes for the arrow and the quest window, plus the on/off switches.
 - The QN minimap button: left-click opens the list, right-click turns the arrow on or off.

@@ -14,7 +14,8 @@ end
 
 ---------------------------------------------------------------------------------------
 -- Error log: our own code runs through ns.Safe, so an error is logged instead of
--- popping up every frame.
+-- popping up every frame. A catch-all error handler also logs any other Lua
+-- error that comes from this addon's files.
 --  * Rate limited: the same error only counts up ("Error B occurred 89 times"),
 --    the chat notice shows at most once per 10 seconds, at most 50 different
 --    errors are kept.
@@ -74,6 +75,38 @@ end
 -- For errors caught elsewhere (e.g. a coroutine) that should go into the log too.
 function ns.LogError(where, message, stack)
     Record(where, { message = tostring(message), stack = stack or "" })
+end
+
+-- Catch-all: every Lua error whose message or stack points into this addon's
+-- folder goes into the log too, also errors outside ns.Safe (while the files
+-- load, in map pin or tooltip callbacks, ...). The handler that was there before
+-- (the game's error popup, or BugSack/BugGrabber) still gets every error, unchanged.
+do
+    local previous = geterrorhandler and geterrorhandler()
+    local busy = false
+    local PATTERN = "AddOns[\\/]" .. ADDON_NAME .. "[\\/]"
+    if seterrorhandler and type(previous) == "function" then
+        seterrorhandler(function(msg, ...)
+            if not busy then
+                busy = true
+                pcall(function()
+                    local text = tostring(msg)
+                    local stack = debugstack and debugstack(2, 20, 0) or ""
+                    -- This handler is always on the stack itself; leave its
+                    -- own lines out, or other addons' errors look like ours.
+                    local own = {}
+                    for line in stack:gmatch("[^\n]+") do
+                        if not line:find(PATTERN .. "Core%.lua") then own[#own + 1] = line end
+                    end
+                    if text:find(PATTERN) or table.concat(own, "\n"):find(PATTERN) then
+                        Record("lua error", { message = text, stack = stack })
+                    end
+                end)
+                busy = false
+            end
+            return previous(msg, ...)
+        end)
+    end
 end
 
 -- "A", "B", ... "Z", "AA", "AB", ...
